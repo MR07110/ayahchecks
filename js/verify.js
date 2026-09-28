@@ -70,6 +70,45 @@
     return best && best.sim >= 0.5 ? { x: best.x, r: best.r, alt: exact } : null;
   }
 
+  // So'zlarni (model xato ajratgan bo'lsa ham) Mus'haf oyatlariga qayta taqsimlaydi: 3-oyat 4-oyatga qo'shilib ketmasin
+  function mapWords(m, c) {
+    const p = m.length, q = c.length, D = [], P = [];
+    for (let i = 0; i <= p; i++) { D.push(new Array(q + 1).fill(0)); P.push(new Array(q + 1).fill(0)); D[i][0] = i; P[i][0] = 1; }
+    for (let i = 1; i <= p; i++) for (let j = 1; j <= q; j++) {
+      const d = D[i - 1][j - 1] + 1 - Q.sim(m[i - 1], c[j - 1]), u = D[i - 1][j] + 1, l = D[i][j - 1] + 1;
+      if (d <= u && d <= l) { D[i][j] = d; P[i][j] = 0; } else if (u <= l) { D[i][j] = u; P[i][j] = 1; } else { D[i][j] = l; P[i][j] = 2; }
+    }
+    let jb = 1; for (let j = 1; j <= q; j++) if (D[p][j] < D[p][jb]) jb = j;
+    const map = new Array(p).fill(-1); let i = p, j = jb;
+    while (i > 0) { if (j === 0) { i--; continue; } const t = P[i][j]; if (t === 0) { map[i - 1] = j - 1; i--; j--; } else if (t === 1) i--; else j--; }
+    return map;
+  }
+  function reflow(data, db) {
+    const ays = (data && data.ayahs) || []; if (!ays.length) return false;
+    const hits = ays.map(a => locate(a, db.list, Number(data.surah_number), Number(a.number)));
+    if (hits.some(h => !h)) return false;                       // ishonchsiz bo'lsa tegmaymiz
+    const s = hits[0].x.s; if (hits.some(h => h.x.s !== s)) return false;
+    const ns = hits.map(h => h.x.n), lo = Math.min(...ns) - 2, hi = Math.max(...ns) + 2;
+    const S = [], own = [];
+    db.list.filter(x => x.s === s && x.n >= lo && x.n <= hi).forEach(x => x.nw.forEach(w => { S.push(w); own.push(x.n); }));
+    const ws = []; ays.forEach(a => a.words.forEach(w => ws.push({ w, a })));
+    if (!ws.length || !S.length) return false;
+    const lab = mapWords(ws.map(o => Q.norm(o.w.arabic)), S).map(j => j >= 0 ? own[j] : null);
+    for (let i = 1; i < lab.length; i++) if (lab[i] == null) lab[i] = lab[i - 1];
+    for (let i = lab.length - 2; i >= 0; i--) if (lab[i] == null) lab[i] = lab[i + 1];
+    if (lab.some(x => x == null)) return false;
+    for (let i = 1; i < lab.length; i++) if (lab[i] < lab[i - 1]) lab[i] = lab[i - 1];
+    const groups = [];
+    ws.forEach((o, i) => { const g = groups[groups.length - 1]; if (g && g.n === lab[i]) g.items.push(o); else groups.push({ n: lab[i], items: [o] }); });
+    if (groups.length === ays.length && groups.every((g, k) => g.items.length === ays[k].words.length && g.n === hits[k].x.n)) return false;   // allaqachon to'g'ri
+    data.ayahs = groups.map(g => {
+      const src = g.items[0].a, whole = g.items.every(o => o.a === src) && g.items.length === src.words.length;
+      const words = g.items.map((o, i) => { o.w.index = i + 1; return o.w; });
+      return { number: g.n, words, full_arabic: words.map(w => w.arabic).join(' '), full_uzbek: whole ? src.full_uzbek : words.map(w => w.uzbek).join(' '), reflowed: true };
+    });
+    return true;
+  }
+
   // Harf+harakat klasterlari bo'yicha diff (LCS)
   function clusters(t) {
     const o = [];
@@ -107,6 +146,7 @@
   Q.verify = async function (data) {
     const db = await load();
     if (!db) return null;
+    try { reflow(data, db); } catch (e) { /* ajratish o'zgarmaydi */ }
     const votes = new Map(); let checked = 0;
     data.ayahs.forEach(a => {
       const hit = locate(a, db.list, Number(data.surah_number), Number(a.number));
@@ -127,5 +167,5 @@
     return { checked, marks: db.marks };
   };
   Q.verifyLoad = load;   // server oldindan isitib qo'yishi uchun
-  Q._v = { diff, align };   // test uchun
+  Q._v = { diff, align, reflow };   // test uchun
 })(typeof window !== "undefined" ? window.QW : globalThis.QW);

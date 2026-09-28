@@ -49,7 +49,7 @@
         a.words.forEach(w => {
           const c = el('div', 'word-cell' + (w._bad ? ' bad' : ''), null, grid);
           el('div', 'word-index', w.index, c); el('div', 'word-arabic', w.arabic, c); el('div', 'word-uzbek', w.uzbek, c);
-          c.tabIndex = 0; c.title = 'Tarjimani nusxalash';
+          c.tabIndex = 0; c.title = w.fix ? "Rasmda: " + w.fix + " (lug'at bilan tuzatildi)" : 'Tarjimani nusxalash'; if (w.fix) c.classList.add('fixed');
           const go = () => { ui.copy(w.uzbek); c.classList.add('copied'); setTimeout(() => c.classList.remove('copied'), 700); };
           c.addEventListener('click', go);
           c.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
