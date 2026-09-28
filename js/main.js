@@ -3,10 +3,6 @@
   let file = null, last = null, busy = false;
 
   // ---- boshlang'ich holat ----
-  let key = Q.store.get(C.K_KEY, '');
-  if (!key) { try { key = localStorage.getItem(C.K_KEY) || ''; } catch { key = ''; } }
-  $('apiKeyInput').value = key;
-  $('apiKeyInput').addEventListener('input', e => Q.store.set(C.K_KEY, e.target.value.trim()));
   const sel = $('modelSelect');
   C.MODELS.forEach(([id, name]) => { const o = document.createElement('option'); o.value = id; o.textContent = name; sel.appendChild(o); });
   const savedModel = Q.store.get(C.K_MODEL, '');
@@ -20,6 +16,9 @@
 
   const refreshHistory = () => ui.history(openItem, delItem);
   refreshHistory();
+  // Supabase: anonim sessiya + tarixni yuklash
+  Q.supa.ready.then(() => Q.hist.load()).then(refreshHistory)
+    .catch(e => { console.error(e); ui.error(e.message || "Serverga ulanib bo'lmadi."); });
 
   // ---- tablar ----
   function showTab(name) {
@@ -55,13 +54,12 @@
   // ---- tahlil ----
   async function run() {
     if (busy) return;
-    const k = $('apiKeyInput').value.trim();
-    if (!k) return ui.error('API kalitni kiriting.');
     if (!file) return ui.error('Rasm tanlang.');
     busy = true; const btn = $('runBtn'); btn.disabled = true; btn.textContent = 'Ajratilmoqda...';
     ui.hideError(); ui.hideResult(); ui.hideWarn();
     try {
-      const { parsed, usage, ms } = await Q.api.analyze({ file, key: k, model: sel.value, onStatus: s => { btn.textContent = s; } });
+      await Q.supa.ready;
+      const { parsed, usage, ms } = await Q.api.analyze({ file, model: sel.value, onStatus: s => { btn.textContent = s; } });
       let v = Q.validate(parsed);
       if (v.issues.some(i => i.lvl === 'err' && !i.ayah)) throw new Error("Rasmdan oyat topilmadi. Aniqroq rasm yuklang.");
       const meta = 'Model: ' + sel.value + ' · ' + (ms / 1000).toFixed(1) + ' s' + (usage ? ' · ' + usage.total_tokens + ' token' : '');
@@ -69,7 +67,7 @@
       btn.textContent = "Mus'haf bilan solishtirilmoqda...";
       const ver = await Q.verify(parsed);           // tarmoq xatosi bo'lsa null — natija baribir saqlanadi
       if (ver) { v = Q.validate(parsed); ui.result(parsed, v, meta); }
-      Q.hist.add(parsed); refreshHistory();
+      try { await Q.hist.add(parsed, v.score); refreshHistory(); } catch (e) { console.error(e); ui.toast(e.message, 4000); }
       if ($('autoCopy').checked) ui.copy(parsed.ayahs.map(a => a.full_uzbek).filter(Boolean).join('\n'));
       ui.warn("Diqqat: natija sun'iy intellekt tomonidan o'qilgan" + (ver ? '. Yashil belgi — ochiq Mus\'haf matni bilan mos kelganini bildiradi' : '') + ". Muhim joylarni asl Mus'haf bilan tekshiring.");
     } catch (e) { console.error(e); ui.error(e.message || 'Xatolik.'); }
@@ -78,14 +76,19 @@
   $('runBtn').addEventListener('click', run);
 
   // ---- tarix ----
-  function openItem(id) {
-    const it = Q.hist.list().find(x => x.id === id); if (!it) return;
-    last = it.data; ui.result(last, Q.validate(last), 'Tarixdan ochildi');
-    showTab('scan'); $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  async function openItem(id) {
+    try {
+      const data = await Q.hist.get(id);
+      last = data; ui.result(last, Q.validate(last), 'Tarixdan ochildi');
+      showTab('scan'); $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (e) { ui.error(e.message); }
   }
-  function delItem(id) { if (Q.hist.remove(id)) { refreshHistory(); ui.toast("O'chirildi"); } }
-  $('clearAllBtn').addEventListener('click', () => {
-    if (confirm("Barcha tarixni o'chirasizmi?") && Q.hist.clear()) { refreshHistory(); ui.toast("Barcha tarix o'chirildi"); }
+  async function delItem(id) {
+    try { await Q.hist.remove(id); refreshHistory(); ui.toast("O'chirildi"); } catch (e) { ui.error(e.message); }
+  }
+  $('clearAllBtn').addEventListener('click', async () => {
+    if (!confirm("Barcha tarixni o'chirasizmi?")) return;
+    try { await Q.hist.clear(); refreshHistory(); ui.toast("Barcha tarix o'chirildi"); } catch (e) { ui.error(e.message); }
   });
 
   // ---- nusxalash / JSON ----

@@ -27,11 +27,6 @@
 
   <section class="tab-content active" id="tab-scan">
     <div class="api-section">
-      <label for="apiKeyInput">Groq API kaliti</label>
-      <input type="password" id="apiKeyInput" placeholder="gsk_..." autocomplete="off">
-      <div class="api-hint">Bepul kalit: <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a></div>
-    </div>
-    <div class="api-section">
       <label for="modelSelect">Model</label>
       <select id="modelSelect"></select>
     </div>
@@ -75,7 +70,9 @@
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
+<script src="js/supa.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/validate.js"></script>
 <script src="js/verify.js"></script>

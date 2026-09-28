@@ -96,7 +96,7 @@
         const d = new Date(it.date), p = n => String(n).padStart(2, '0');
         const row = el('div', 'history-item', null, box), info = el('div', 'history-item-info', null, row);
         el('div', 'history-item-title', it.surah || "Noma'lum", info);
-        el('div', 'history-item-meta', (it.surah_number ? it.surah_number + '-sura · ' : '') + it.ayah_count + ' oyat · ' + p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()), info);
+        el('div', 'history-item-meta', (it.surah_number ? it.surah_number + '-sura · ' : '') + it.ayah_count + ' oyat · ' + (it.score != null ? it.score + '% · ' : '') + p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()), info);
         const acts = el('div', '', null, row), del = el('button', 'icon-btn danger', '✕', acts);
         del.title = "O'chirish";
         row.addEventListener('click', () => onOpen(it.id));
