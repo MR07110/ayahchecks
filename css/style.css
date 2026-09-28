@@ -1,0 +1,79 @@
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+body{font-family:Georgia,'Times New Roman',serif;background:#f5f1e8;min-height:100vh;padding:30px 20px;color:#2c1810}
+.container{max-width:900px;margin:0 auto;background:#fdfaf3;border:1px solid #d4af37;border-radius:4px;box-shadow:0 4px 20px rgba(139,69,19,.15);padding:40px 36px}
+.logo{display:block;height:88px;width:auto;margin:0 auto 10px}
+h1{text-align:center;font-size:30px;font-weight:400;color:#6b4423;letter-spacing:3px;margin-bottom:6px}
+.divider{text-align:center;color:#d4af37;font-size:22px;margin-bottom:22px;font-family:'Amiri',serif}
+.subtitle{text-align:center;font-size:13px;color:#8b6f47;margin-bottom:30px;font-style:italic}
+.tabs{display:flex;border-bottom:1px solid #e0d5bf;margin-bottom:26px}
+.tab{flex:1;padding:12px;cursor:pointer;font:inherit;font-size:14px;letter-spacing:1px;color:#a89070;background:none;border:0;border-bottom:2px solid transparent}
+.tab:hover{color:#6b4423}.tab.active{color:#6b4423;border-bottom-color:#d4af37;font-weight:700}
+.tab-content{display:none}.tab-content.active{display:block}
+.api-section{margin-bottom:18px}
+.api-section label{display:block;font-size:13px;color:#6b4423;margin-bottom:6px;letter-spacing:1px}
+.api-section input,.api-section select{width:100%;padding:10px 14px;border:1px solid #d4af37;border-radius:3px;background:#fffef9;font:13px monospace;color:#2c1810;outline:0}
+.api-hint{font-size:11px;color:#a89070;margin-top:5px}.api-hint a{color:#6b4423}
+.drop-zone{display:block;border:2px dashed #c9a961;border-radius:4px;padding:36px 20px;text-align:center;cursor:pointer;background:#fffef9;margin-bottom:20px;transition:.2s}
+.drop-zone:hover,.drop-zone.dragover{background:#faf5e6;border-color:#8b6f47}
+.drop-zone input{display:none}
+.drop-zone .title{font-size:15px;color:#6b4423;margin-bottom:6px}
+.subtitle-small{font-size:12px;color:#a89070;font-style:italic}
+#preview{max-width:100%;max-height:280px;margin:0 auto 20px;display:none;border:1px solid #d4af37;border-radius:3px;padding:4px;background:#fffef9}
+button.primary{width:100%;padding:13px;font:15px Georgia,serif;letter-spacing:2px;color:#fdfaf3;background:#6b4423;border:1px solid #6b4423;border-radius:3px;cursor:pointer}
+button.primary:hover:not(:disabled){background:#4a2e17}
+button.primary:disabled{background:#c9b89a;border-color:#c9b89a;cursor:not-allowed}
+.result{margin-top:30px;display:none}
+.result-header{text-align:center;padding-bottom:16px;margin-bottom:18px;border-bottom:1px solid #e0d5bf}
+.surah-name{font-size:30px;color:#6b4423;font-family:'Amiri Quran','Amiri',serif;direction:rtl}
+.surah-info{font-size:12px;color:#a89070;letter-spacing:1px}
+.report{border:1px solid #e0d5bf;border-radius:4px;background:#fffef9;padding:12px 16px;margin-bottom:8px;font-size:13px;color:#4a3520}
+.report .score{font-size:15px;font-weight:700;margin-bottom:6px}
+.report .s-good{color:#3d6b2e}.report .s-mid{color:#9a6b12}.report .s-bad{color:#8b3a24}
+.report ul{padding-left:18px;font-size:12px;line-height:1.7}.report li.err{color:#8b3a24}
+.ayah{padding:26px 0;border-bottom:1px solid #ece2cc}.ayah:last-child{border-bottom:0}
+.ayah-head{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.ayah-number{width:38px;height:38px;line-height:36px;text-align:center;border:1px solid #d4af37;border-radius:50%;color:#8b6f47;background:#fffef9;font-family:'Amiri',serif}
+.badge{font-size:11px;padding:3px 9px;border-radius:10px;border:1px solid}
+.badge.ok{color:#3d6b2e;border-color:#a9c99a;background:#f1f8ec}.badge.warn{color:#9a6b12;border-color:#e0c98a;background:#fff8e6}
+.words-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:4px;background:#e8dcc0;border:1px solid #e0d5bf;border-radius:4px;padding:4px;margin-bottom:20px;direction:rtl}
+.word-cell{background:#fffef9;padding:22px 8px 12px;text-align:center;border-radius:2px;min-height:130px;display:flex;flex-direction:column;justify-content:center;align-items:center;position:relative}
+.word-cell:hover{background:#faf5e6}
+.word-cell.bad{background:#fdf2f0}
+.word-index{position:absolute;top:6px;left:8px;font-size:10px;color:#a89070;background:#f5f1e8;border:1px solid #e0d5bf;border-radius:50%;width:18px;height:18px;line-height:16px;text-align:center}
+.word-arabic{font-family:'Amiri Quran','Amiri',serif;font-size:26px;line-height:1.5;margin-bottom:10px;direction:rtl;white-space:nowrap}
+.word-uzbek{font-size:12px;color:#8b6f47;font-style:italic;line-height:1.4;direction:ltr;border-top:1px dashed #d4af37;padding-top:6px;width:85%}
+.ayah-full-block{padding:16px 18px;background:#faf5e6;border-left:3px solid #d4af37;border-radius:3px}
+.ayah-full-label{font-size:10px;color:#a89070;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.ayah-full-arabic{font-family:'Amiri Quran','Amiri',serif;font-size:24px;line-height:1.8;direction:rtl;text-align:right;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed #e0d5bf}
+.ayah-full-text{font-size:14px;line-height:1.8;color:#4a3520;font-style:italic}
+.history-empty{text-align:center;padding:50px 20px;color:#a89070;font-style:italic}
+.history-item{border:1px solid #e0d5bf;border-radius:4px;padding:16px 18px;margin-bottom:12px;background:#fffef9;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:14px}
+.history-item:hover{border-color:#d4af37;background:#faf5e6}
+.history-item-info{flex:1;min-width:0}
+.history-item-title{font-size:16px;color:#6b4423;margin-bottom:4px;font-family:'Amiri',serif;direction:rtl;text-align:right}
+.history-item-meta{font-size:11px;color:#a89070}
+.history-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid #e0d5bf;font-size:13px;color:#8b6f47}
+.icon-btn{width:32px;height:32px;font-size:13px;background:#fffef9;color:#6b4423;border:1px solid #d4af37;border-radius:3px;cursor:pointer}
+.icon-btn:hover{background:#faf5e6}.icon-btn.danger:hover{background:#fdf2f0;color:#8b3a24}
+.meta{text-align:center;font-size:11px;color:#a89070;margin-top:24px;padding-top:16px;border-top:1px solid #ece2cc}
+.actions{display:flex;gap:10px;margin-top:20px}
+.actions button{flex:1;padding:10px;font:inherit;font-size:13px;background:#fffef9;color:#6b4423;border:1px solid #d4af37;border-radius:3px;cursor:pointer}
+.actions button:hover{background:#faf5e6}
+.error,.warning-box{margin-top:18px;padding:12px 16px;border-radius:3px;font-size:13px;line-height:1.6;display:none}
+.error{background:#fdf2f0;border:1px solid #d9a89a;color:#8b3a24}
+.warning-box{background:#fff8e6;border:1px solid #e0c98a;color:#7a5c1e;font-size:12px}
+.raw-json{margin-top:16px;padding:14px;background:#f5f1e8;border:1px solid #e0d5bf;border-radius:3px;font:11px monospace;max-height:300px;overflow:auto;white-space:pre-wrap;display:none}
+.toast{position:fixed;bottom:30px;left:50%;transform:translate(-50%,100px);background:#6b4423;color:#fdfaf3;padding:12px 24px;border-radius:4px;font-size:13px;opacity:0;transition:.3s;pointer-events:none;z-index:9999}
+.toast.show{transform:translate(-50%,0);opacity:1}
+@media(max-width:600px){.container{padding:26px 18px}h1{font-size:24px}.logo{height:72px}.word-arabic{font-size:22px}.words-grid{grid-template-columns:repeat(auto-fit,minmax(95px,1fr))}}
+
+.diff{margin-top:12px;border:1px solid #e0d5bf;border-radius:4px;background:#fffef9;padding:8px 14px}
+.diff summary{cursor:pointer;font-size:12px;color:#6b4423;letter-spacing:1px}
+.diff-src,.diff-legend{font-size:11px;color:#a89070;margin:8px 0}.diff-src a{color:#6b4423}
+.diff-row{display:flex;gap:10px;align-items:baseline;margin:4px 0}
+.diff-lab{flex:0 0 58px;font-size:11px;color:#8b6f47}
+.diff-txt{flex:1;font-family:'Amiri Quran','Amiri',serif;font-size:22px;line-height:2;direction:rtl;text-align:right}
+.d-del{background:#fbd5cf;color:#8b3a24}.d-add{background:#cfe9c6;color:#2d5a1f}.d-mk{background:#fbe9a6}
+.word-cell{cursor:pointer;transition:background .2s}.word-cell:focus-visible{outline:2px solid #d4af37}.word-cell.copied{background:#e6f3dc}
+.api-section .chk{display:flex;align-items:center;gap:8px;font-size:13px;letter-spacing:0;margin-bottom:6px;cursor:pointer}.api-section .chk input{width:auto;padding:0}
