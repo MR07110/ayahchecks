@@ -164,3 +164,20 @@ button,a,.job,.q-handle{touch-action:manipulation}
 .cam-video{opacity:0;transition:opacity .4s ease}.cam-video.on{opacity:1}
 .q-thumb{transition:opacity .3s ease}
 .word-cell.fixed .word-uzbek{color:#3d6b2e}
+
+/* ---- hisob (qurilmalarni bog'lash) ---- */
+.acc-btn{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));right:12px;z-index:60;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:12px Georgia,serif;letter-spacing:1px;color:#6b4423;background:#fffef9;border:1px solid #d4af37;border-radius:3px;padding:7px 12px;cursor:pointer}
+.acc-btn:hover{background:#faf5e6}
+.acc-bg{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(44,24,16,.45);opacity:0;pointer-events:none;transition:opacity .25s ease}
+.acc-bg.show{opacity:1;pointer-events:auto}
+.acc-box{width:100%;max-width:400px;background:#fdfaf3;border:1px solid #d4af37;border-radius:4px;padding:24px;transform:translateY(12px);transition:transform .3s cubic-bezier(.2,.8,.2,1)}
+.acc-bg.show .acc-box{transform:none}
+.acc-box h2{font-weight:400;font-size:20px;color:#6b4423;letter-spacing:1px;margin-bottom:12px}
+.acc-box p{font-size:13px;color:#4a3520;margin-bottom:10px;line-height:1.6;word-break:break-all}
+.acc-hint{color:#8b6f47!important;font-style:italic}
+.acc-in{width:100%;padding:11px 14px;margin-bottom:10px;border:1px solid #d4af37;border-radius:3px;background:#fffef9;font:14px Georgia,serif;color:#2c1810;outline:0}
+.acc-in:focus{border-color:#8b6f47}
+.wide{width:100%;margin-bottom:8px;padding:11px 12px;text-align:center}
+.acc-alt{font:12px Georgia,serif;color:#6b4423;background:#fffef9;border:1px solid #d4af37;border-radius:3px;cursor:pointer}
+.acc-alt:hover{background:#faf5e6}
+.acc-msg{min-height:18px;font-size:12px;color:#3d6b2e;margin-bottom:8px;line-height:1.5}.acc-msg.bad{color:#8b3a24}
