@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AyahChecks — Jarayon</title>
+<title>AyahChecks — Natijalar</title>
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon-192.png">
@@ -20,16 +20,31 @@
   <h1>AyahChecks</h1>
   <div class="divider">﷽</div>
   <nav class="tabs">
-    <a class="tab active" href="/">Jarayon</a>
+    <a class="tab" href="/">Jarayon</a>
     <a class="tab" href="/input">Kirish</a>
-    <a class="tab" href="/output">Natijalar</a>
+    <a class="tab active" href="/output">Natijalar</a>
   </nav>
-  <p class="subtitle">Bu sahifa faqat ko'rish uchun: hozir nima bo'layotgani jonli chiqadi</p>
-  <div class="live-card" id="liveCard">
-    <div class="live-dot" id="liveDot"></div>
-    <div><div class="live-title" id="liveTitle">Yuklanmoqda...</div><div class="live-sub" id="liveSub"></div></div>
+  <p class="subtitle">Tayyor bo'lgan natijalar</p>
+  <div class="history-toolbar" id="historyToolbar" hidden>
+    <span id="historyInfo"></span><span id="historyCount" hidden></span>
+    <button class="icon-btn danger" id="clearAllBtn" title="Barchasini o'chirish">✕</button>
   </div>
-  <div id="jobList"></div>
+  <div id="historyList"></div>
+  <div class="result" id="result">
+    <div class="result-header">
+      <div class="surah-name" id="surahName"></div>
+      <div class="surah-info" id="surahInfo"></div>
+    </div>
+    <div class="report" id="report"></div>
+    <div id="ayahList"></div>
+    <div class="actions">
+      <button id="copyBtn">Nusxalash</button>
+      <button id="jsonBtn">JSON ko'rish</button>
+      <button id="downloadBtn">JSON yuklab olish</button>
+    </div>
+    <pre class="raw-json" id="rawJson"></pre>
+    <div class="meta" id="metaInfo"></div>
+  </div>
   <div class="error" id="errorBox"></div>
 </div>
 <div class="toast" id="toast"></div>
@@ -38,7 +53,8 @@
 <script src="/js/supa.js"></script>
 <script src="/js/storage.js"></script>
 <script src="/js/jobs.js"></script>
+<script src="/js/validate.js"></script>
 <script src="/js/ui.js"></script>
-<script src="/js/monitor.js"></script>
+<script src="/js/output.js"></script>
 </body>
 </html>

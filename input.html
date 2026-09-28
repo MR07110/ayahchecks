@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AyahChecks — Jarayon</title>
+<title>AyahChecks — Kirish</title>
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon-192.png">
@@ -20,16 +20,26 @@
   <h1>AyahChecks</h1>
   <div class="divider">﷽</div>
   <nav class="tabs">
-    <a class="tab active" href="/">Jarayon</a>
-    <a class="tab" href="/input">Kirish</a>
+    <a class="tab" href="/">Jarayon</a>
+    <a class="tab active" href="/input">Kirish</a>
     <a class="tab" href="/output">Natijalar</a>
   </nav>
-  <p class="subtitle">Bu sahifa faqat ko'rish uchun: hozir nima bo'layotgani jonli chiqadi</p>
-  <div class="live-card" id="liveCard">
-    <div class="live-dot" id="liveDot"></div>
-    <div><div class="live-title" id="liveTitle">Yuklanmoqda...</div><div class="live-sub" id="liveSub"></div></div>
+  <p class="subtitle">So'zma-so'z rasmlarni shu yerga kiriting (bir nechta bo'lishi mumkin)</p>
+  <div class="api-section">
+    <label for="modelSelect">Model</label>
+    <select id="modelSelect"></select>
   </div>
-  <div id="jobList"></div>
+  <div class="api-section">
+    <label class="chk"><input type="checkbox" id="autoRun"> Rasm kiritilganda avtomatik boshlash</label>
+  </div>
+  <label class="drop-zone" id="dropZone" for="imageInput">
+    <div class="title">Rasmlarni bu yerga tashlang</div>
+    <div class="subtitle-small">yoki bosing · yoki Ctrl+V bilan qo'ying</div>
+    <input type="file" id="imageInput" accept="image/*" multiple>
+  </label>
+  <div id="queue"></div>
+  <button class="primary" id="runBtn" disabled>Boshlash</button>
+  <div class="warning-box" id="warningBox"></div>
   <div class="error" id="errorBox"></div>
 </div>
 <div class="toast" id="toast"></div>
@@ -38,7 +48,10 @@
 <script src="/js/supa.js"></script>
 <script src="/js/storage.js"></script>
 <script src="/js/jobs.js"></script>
+<script src="/js/validate.js"></script>
+<script src="/js/verify.js"></script>
+<script src="/js/api.js"></script>
 <script src="/js/ui.js"></script>
-<script src="/js/monitor.js"></script>
+<script src="/js/input.js"></script>
 </body>
 </html>

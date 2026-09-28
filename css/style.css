@@ -77,3 +77,14 @@ button.primary:disabled{background:#c9b89a;border-color:#c9b89a;cursor:not-allow
 .d-del{background:#fbd5cf;color:#8b3a24}.d-add{background:#cfe9c6;color:#2d5a1f}.d-mk{background:#fbe9a6}
 .word-cell{cursor:pointer;transition:background .2s}.word-cell:focus-visible{outline:2px solid #d4af37}.word-cell.copied{background:#e6f3dc}
 .api-section .chk{display:flex;align-items:center;gap:8px;font-size:13px;letter-spacing:0;margin-bottom:6px;cursor:pointer}.api-section .chk input{width:auto;padding:0}
+a.tab{text-align:center;text-decoration:none;display:block}
+.live-card{display:flex;align-items:center;gap:14px;border:1px solid #d4af37;border-radius:4px;background:#fffef9;padding:16px 18px;margin-bottom:20px}
+.live-dot{width:12px;height:12px;border-radius:50%;background:#c9b89a;flex:none}
+.live-dot.on{background:#3d6b2e;animation:pulse 1.2s infinite}.live-dot.off{background:#8b3a24}
+@keyframes pulse{50%{opacity:.35}}
+.live-title{font-size:16px;color:#6b4423}.live-sub{font-size:12px;color:#a89070;margin-top:3px}
+.job{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid #e0d5bf;border-radius:4px;background:#fffef9;padding:12px 16px;margin-bottom:8px}
+.job-name{font-size:14px;color:#4a3520;word-break:break-all}.job-meta{font-size:11px;color:#a89070;margin-top:3px}
+.job a{font-size:12px;color:#6b4423;white-space:nowrap}
+.badge.busy{color:#6b4423;border-color:#d4af37;background:#faf5e6}.badge.err{color:#8b3a24;border-color:#d9a99a;background:#fbeee9}
+.badge.wait{color:#8b6f47;border-color:#e0d5bf;background:#f7f2e6}

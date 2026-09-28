@@ -9,7 +9,6 @@ window.QW = {
     HISTORY_MAX: 50,
     VERIFY_MIN: 0.92,         // Mus'haf bilan mosligi chegarasi
     K_MODEL: 'GROQ_MODEL',
-    K_AUTORUN: 'AC_AUTO_RUN',
-    K_AUTOCOPY: 'AC_AUTO_COPY'
+    K_AUTORUN: 'AC_AUTO_RUN'
   }
 };

@@ -2,10 +2,16 @@
 
 Frontend statik (`index.html`, `css/`, `js/`), backend esa Vercel funksiyalari (`api/`). Groq kaliti brauzerga chiqmaydi.
 
+## Sahifalar
+- `/` — faqat ko'rish: hozir nima bo'layotgani jonli (Supabase Realtime + 5 s da yangilanish)
+- `/input` — rasmlarni kiritish, navbat bilan tahlil
+- `/output` — tayyor natijalar, nusxalash, JSON yuklab olish
+
 ## Fayllar
 - `api/analyze.js` — Supabase tokenini tekshiradi, kunlik limit qo'yadi, Groq'ni chaqiradi
 - `api/config.js` — brauzerga Supabase URL va anon kalitni beradi
 - `api/_prompt.js` — Groq uchun ko'rsatma
+- `js/jobs.js`, `js/monitor.js`, `js/input.js`, `js/output.js` — uch sahifaning mantig'i
 - `js/supa.js` — anonim kirish; `js/storage.js` — tarix (Supabase `checks` jadvali)
 - `supabase/schema.sql` — jadvallar va RLS
 

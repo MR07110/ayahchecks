@@ -30,6 +30,7 @@
       }).select('id,created_at,surah,surah_number,ayah_count,score').single();
       if (error) throw new Error("Tarixga saqlab bo'lmadi: " + error.message);
       this.items.unshift(row(data)); this.items.length = Math.min(this.items.length, C.HISTORY_MAX);
+      return data.id;
     },
     async remove(id) {
       const { error } = await db().delete().eq('id', id);
