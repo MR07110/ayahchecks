@@ -3,7 +3,7 @@
   const ui = Q.ui, $ = ui.$;
   let last = null;
 
-  const refresh = () => ui.history(openItem, delItem);
+  const refresh = () => ui.history(openItem, delItem, dlItem);
   refresh();
 
   async function openItem(id) {
@@ -12,6 +12,16 @@
       ui.result(last, Q.validate(last), 'Saqlangan natija');
       $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (e) { ui.error(e.message); }
+  }
+  const clean = d => JSON.stringify(d, (k, v) => k === '_bad' ? undefined : v, 2);
+  function save(blob, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  async function dlItem(id) {
+    try { const d = await Q.hist.get(id); save(new Blob([clean(d)], { type: 'application/json' }), Q.name.file(d) + '.json'); }
+    catch (e) { ui.error(e.message); }
   }
   async function delItem(id) {
     try { await Q.hist.remove(id); refresh(); ui.toast("O'chirildi"); } catch (e) { ui.error(e.message); }
@@ -33,10 +43,27 @@
   });
   $('downloadBtn').addEventListener('click', () => {
     if (!last) return;
-    const blob = new Blob([JSON.stringify(last, (k, v) => k === '_bad' ? undefined : v, 2)], { type: 'application/json' });
-    const a = document.createElement('a'), name = (last.surah_number ? last.surah_number + '-' : '') + 'ayahchecks-' + Date.now() + '.json';
-    a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    save(new Blob([clean(last)], { type: 'application/json' }), Q.name.file(last) + '.json');
+  });
+
+  // Hammasini bitta ZIP qilib yuklash: har natija o'z nomi bilan + fihrist.csv
+  $('zipBtn').addEventListener('click', async () => {
+    const btn = $('zipBtn'); btn.disabled = true; const t0 = btn.textContent; btn.textContent = 'Tayyorlanmoqda...';
+    try {
+      const rows = await Q.hist.all();
+      if (!rows.length) return ui.toast("Yuklash uchun natija yo'q");
+      const used = {}, files = [], csv = ['fayl,sura,oyat,soz,sana'];
+      rows.forEach(r => {
+        const base = Q.name.file(r.data), n = used[base] = (used[base] || 0) + 1, name = base + (n > 1 ? '_' + n : '') + '.json', i = Q.name.info(r.data);
+        files.push({ name, data: clean(r.data) });
+        csv.push([name, i.s + ' ' + i.name, i.from === i.to ? i.from : i.from + '-' + i.to, i.single ? i.wmin + '-' + i.wmax : i.total, r.created_at.slice(0, 16).replace('T', ' ')].join(','));
+      });
+      files.push({ name: 'fihrist.csv', data: '\uFEFF' + csv.join('\n') + '\n' });
+      const d = new Date(), p = n => String(n).padStart(2, '0');
+      save(Q.zip(files, d), 'ayahchecks_' + d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes()) + '.zip');
+      ui.toast(files.length - 1 + ' ta fayl ZIP ga yig\'ildi');
+    } catch (e) { ui.error(e.message); }
+    finally { btn.disabled = false; btn.textContent = t0; }
   });
 
   Q.supa.ready.then(() => Q.hist.load()).then(() => {

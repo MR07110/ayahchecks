@@ -24,19 +24,26 @@
     <a class="tab active" href="/input">Kirish</a>
     <a class="tab" href="/output">Natijalar</a>
   </nav>
+  <section class="cam" id="cam" hidden></section>
   <p class="subtitle">So'zma-so'z rasmlarni shu yerga kiriting (bir nechta bo'lishi mumkin)</p>
   <div class="api-section">
     <label for="modelSelect">Model</label>
     <select id="modelSelect"></select>
   </div>
   <div class="api-section">
-    <label class="chk"><input type="checkbox" id="autoRun"> Rasm kiritilganda avtomatik boshlash</label>
+    <label class="chk"><input type="checkbox" id="autoRun"> Rasm kiritilishi bilan avtomatik boshlash (o'chiq bo'lsa, avval tartiblab, keyin "Boshlash" bosasiz). Boshlangach brauzerni yopsangiz ham server davom etadi</label>
   </div>
+  <button type="button" class="zip-btn cam-desk" id="camDeskBtn" hidden>Kamera bilan rasmga olish</button>
   <label class="drop-zone" id="dropZone" for="imageInput">
-    <div class="title">Rasmlarni bu yerga tashlang</div>
+    <div class="title">Rasmlarni bu yerga tashlang (100 tagacha va undan ko'p)</div>
     <div class="subtitle-small">yoki bosing · yoki Ctrl+V bilan qo'ying</div>
     <input type="file" id="imageInput" accept="image/*" multiple>
   </label>
+  <div class="queue-bar" id="queueBar" hidden>
+    <span id="queueInfo"></span>
+    <span class="tb-actions"><button class="zip-btn" id="sortBtn" title="Nom bo'yicha (1, 2, 10...) tartiblash">A→Z tartiblash</button>
+    <button class="zip-btn" id="clearQueueBtn" title="Tugamagan/tayyor/xato rasmlarni ro'yxatdan olib tashlash">Tozalash</button></span>
+  </div>
   <div id="queue"></div>
   <button class="primary" id="runBtn" disabled>Boshlash</button>
   <div class="warning-box" id="warningBox"></div>
@@ -45,13 +52,15 @@
 <div class="toast" id="toast"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/js/config.js"></script>
+<script src="/js/naming.js"></script>
 <script src="/js/supa.js"></script>
 <script src="/js/storage.js"></script>
 <script src="/js/jobs.js"></script>
-<script src="/js/validate.js"></script>
-<script src="/js/verify.js"></script>
+<script src="/js/outbox.js"></script>
+<script src="/js/run.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/ui.js"></script>
 <script src="/js/input.js"></script>
+<script src="/js/camera.js"></script>
 </body>
 </html>

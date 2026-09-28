@@ -48,4 +48,4 @@
     return { issues, words, ayahs: ayahs.length, score: checks ? Math.round(ok / checks * 100) : 0 };
   }
   Q.norm = norm; Q.sim = sim; Q.validate = validate;
-})(window.QW);
+})(typeof window !== "undefined" ? window.QW : globalThis.QW);

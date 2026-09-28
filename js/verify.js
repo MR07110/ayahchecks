@@ -5,7 +5,7 @@
 
   async function getJSON(url) {
     let cache = null;
-    try { cache = window.caches ? await caches.open('ayahchecks-v1') : null; } catch (e) { /* kesh ixtiyoriy */ }
+    try { cache = (typeof window !== 'undefined' && window.caches) ? await caches.open('ayahchecks-v1') : null; } catch (e) { /* kesh ixtiyoriy */ }
     try {
       let r = cache ? await cache.match(url) : null;
       if (!r) { r = await fetch(url); if (!r.ok) return null; if (cache) { try { await cache.put(url, r.clone()); } catch (e) { /* */ } } }
@@ -126,5 +126,6 @@
     }
     return { checked, marks: db.marks };
   };
+  Q.verifyLoad = load;   // server oldindan isitib qo'yishi uchun
   Q._v = { diff, align };   // test uchun
-})(window.QW);
+})(typeof window !== "undefined" ? window.QW : globalThis.QW);

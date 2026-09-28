@@ -1,0 +1,5 @@
+{
+  "name": "ayahchecks",
+  "private": true,
+  "dependencies": { "@vercel/functions": "^2.0.0" }
+}

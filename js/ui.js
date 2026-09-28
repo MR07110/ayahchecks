@@ -7,9 +7,11 @@
     if (parent) parent.appendChild(e);
     return e;
   }
+  const P = {x:'<path d="M6 6l12 12M18 6L6 18"/>',up:'<path d="M6 15l6-6 6 6"/>',down:'<path d="M6 9l6 6 6-6"/>',edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',retry:'<path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v5h-5"/>',dl:'<path d="M12 4v11m-5-5l5 5 5-5M5 20h14"/>',grip:'<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="3"/>',image:'<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 16l5-5 4 4 3-3 4 4"/>',list:'<path d="M5 7h14M5 12h14M5 17h14"/>',cam:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'};
+  const icon = (b, n) => { b.innerHTML = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + P[n] + '</svg>'; return b; };
   let tt;
   const ui = {
-    $, el,
+    $, el, icon,
     toast(msg, ms = 2500) { const t = $('toast'); clearTimeout(tt); t.textContent = msg; t.classList.add('show'); tt = setTimeout(() => t.classList.remove('show'), ms); },
     error(m) { const e = $('errorBox'); e.textContent = m; e.style.display = 'block'; },
     hideError() { $('errorBox').style.display = 'none'; },
@@ -40,7 +42,7 @@
         el('div', 'ayah-number', a.number, head);
         if (a.src) {
           const exact = !a.lDiff && !a.mkDiff, near = a.verified >= C.VERIFY_MIN;
-          el('span', 'badge ' + (exact ? 'ok' : 'warn'), exact ? "✓ Manba bilan aynan mos" : near ? '⚠ Farq: ' + (a.lDiff ? a.lDiff + ' harf, ' : '') + (a.mkDiff || 0) + ' harakat' : '⚠ Manbadan farq ' + Math.round(a.verified * 100) + '%', head);
+          el('span', 'badge ' + (exact ? 'ok' : 'warn'), exact ? "Manba bilan aynan mos" : near ? 'Farq: ' + (a.lDiff ? a.lDiff + ' harf, ' : '') + (a.mkDiff || 0) + ' harakat' : 'Manbadan farq ' + Math.round(a.verified * 100) + '%', head);
           if (a.modelNumber != null) el('span', 'badge warn', 'Model raqami ' + a.modelNumber + ' → tuzatildi', head);
         } else if (a.src === null) el('span', 'badge warn', 'Manbadan topilmadi', head);
         const grid = el('div', 'words-grid', null, box);
@@ -86,7 +88,7 @@
       });
       el('div', 'diff-legend', "Qizil — modelda xato/ortiqcha · Yashil — manbada bor · Sariq — harakat farqi" + (a.mkDiff === null ? " · manbada harakat yo'q, harakatlar tekshirilmadi" : ''), d);
     },
-    history(onOpen, onDelete) {
+    history(onOpen, onDelete, onDownload) {
       const l = Q.hist.list(), box = $('historyList'); box.textContent = '';
       $('historyCount').textContent = l.length;
       $('historyToolbar').hidden = !l.length;
@@ -97,7 +99,10 @@
         const row = el('div', 'history-item', null, box), info = el('div', 'history-item-info', null, row);
         el('div', 'history-item-title', it.surah || "Noma'lum", info);
         el('div', 'history-item-meta', (it.surah_number ? it.surah_number + '-sura · ' : '') + it.ayah_count + ' oyat · ' + (it.score != null ? it.score + '% · ' : '') + p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()), info);
-        const acts = el('div', '', null, row), del = el('button', 'icon-btn danger', '✕', acts);
+        if (it.file_name) el('div', 'history-item-file', it.file_name, info);
+        const acts = el('div', 'history-acts', null, row);
+        if (onDownload) { const dl = icon(el('button', 'icon-btn', null, acts), 'dl'); dl.title = 'JSON yuklab olish'; dl.addEventListener('click', e => { e.stopPropagation(); onDownload(it.id); }); }
+        const del = icon(el('button', 'icon-btn danger', null, acts), 'x');
         del.title = "O'chirish";
         row.addEventListener('click', () => onOpen(it.id));
         del.addEventListener('click', e => { e.stopPropagation(); onDelete(it.id); });
