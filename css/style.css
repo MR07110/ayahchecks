@@ -163,3 +163,4 @@ button,a,.job,.q-handle{touch-action:manipulation}
 .badge{transition:background-color .3s ease,color .3s ease,border-color .3s ease}
 .cam-video{opacity:0;transition:opacity .4s ease}.cam-video.on{opacity:1}
 .q-thumb{transition:opacity .3s ease}
+.word-cell.fixed .word-uzbek{color:#3d6b2e}
