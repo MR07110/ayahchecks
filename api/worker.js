@@ -187,6 +187,7 @@ async function processJob(job, deadline, warm) {
     let ver = null;
     try { ver = await Q.verify(parsed); } catch (e) { console.error('verify:', e.message); }   // Mus'haf yuklanmasa ham natija saqlanadi
     if (ver && ver.checked === 0 && job.attempts < 3) return requeue("Mus'hafdan mos oyat topilmadi. Qayta uriniladi");   // o'qish butunlay xato: saqlab "Tayyor" qilmaymiz
+    if (ver && ver.checked === 0) return fail("Rasmdagi matn Mus'haf bilan mos kelmadi (model rasmni o'qiy olmadi yoki boshqa narsa o'qidi). Rasmni yaqinroq, yorug' joyda, tekis holatda qayta oling.");   // taxminiy/to'qilgan natijani \"Tayyor\" deb saqlamaymiz
     if (ver) v = Q.validate(parsed);
     if (cut) { parsed.incomplete = true; v.score = Math.min(v.score || 0, 50); }
 

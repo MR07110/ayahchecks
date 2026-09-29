@@ -188,3 +188,6 @@ button,a,.job,.q-handle{touch-action:manipulation}
 .word-cell.aitr .word-uzbek::after{content:' *'}
 .review-note{margin:10px 0;padding:8px 12px;border:1px solid #d9a3a0;border-radius:4px;background:#fdf0ef;color:#8a2c25;font-size:13px}
 .word-cell.rv{outline:1px dashed #6b8e5a}
+.cam-view{touch-action:none;-webkit-user-select:none;user-select:none}
+.cam-video{transform-origin:center center}
+.cam-zoom{position:absolute;top:8px;right:8px;padding:2px 9px;border-radius:12px;background:rgba(29,19,11,.65);color:#fdfaf3;font:12px Georgia,serif;letter-spacing:1px;pointer-events:none}
