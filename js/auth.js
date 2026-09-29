@@ -16,7 +16,14 @@
       el('p', '', user.email || '', box);
       el('p', 'acc-hint', "Shu email va parol bilan istalgan qurilmada kirsangiz, bir xil navbat va natijalarni ko'rasiz.", box);
       const out = el('button', 'zip-btn', 'Chiqish', box); out.type = 'button';
-      out.addEventListener('click', async () => { await c.auth.signOut(); location.reload(); });
+      out.addEventListener('click', async () => {
+        out.disabled = true;
+        try { await c.auth.signOut({ scope: 'local' }); } catch (e) { /* xato bo'lsa ham qo'lda tozalaymiz */ }
+        // signOut tarmoq xatosi bilan yiqilsa ham sessiya brauzerda qolib ketmasin
+        try { Object.keys(localStorage).filter(k => /^sb-.*-auth-token/.test(k) || k.indexOf('supabase.auth') === 0).forEach(k => localStorage.removeItem(k)); } catch (e) { /* */ }
+        try { Object.keys(sessionStorage).filter(k => /^sb-/.test(k)).forEach(k => sessionStorage.removeItem(k)); } catch (e) { /* */ }
+        location.reload();
+      });
       return;
     }
     el('p', 'acc-hint', "Hozir bu brauzer alohida anonim hisobda, shuning uchun boshqa brauzer yoki qurilma natijalarni ko'rmaydi. Email va parol bilan bog'lang.", box);
