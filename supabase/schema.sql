@@ -157,8 +157,8 @@ returns setof public.jobs language plpgsql security definer set search_path = pu
 declare j public.jobs;
 begin
   update public.jobs set
-    status  = case when attempts >= 3 then 'error' else 'queued' end,
-    message = case when attempts >= 3 then 'Bir necha marta uzildi. Qayta urinib ko''ring.' else 'Uzilgan ish qayta navbatga qo''yildi' end,
+    status  = case when attempts >= 6 then 'error' else 'queued' end,
+    message = case when attempts >= 6 then 'Bir necha marta uzildi. Qayta urinib ko''ring.' else 'Uzilgan ish qayta navbatga qo''yildi' end,
     updated_at = now()
   where status in ('preparing', 'analyzing', 'verifying', 'saving') and updated_at < now() - interval '3 minutes';
 

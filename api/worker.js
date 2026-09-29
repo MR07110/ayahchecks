@@ -11,8 +11,9 @@ require('../js/naming.js'); require('../js/validate.js'); require('../js/verify.
 const MODELS = new Set(['qwen/qwen3.8-27b', 'qwen/qwen3.6-27b']);   // js/config.js bilan bir xil
 const PAUSE_MS = (Number(process.env.PAUSE_SECONDS) || 20) * 1000;   // har so'rovdan keyingi pauza
 const DAILY_LIMIT = Number(process.env.DAILY_LIMIT) || 1000;   // qayta urinishlar ham hisobga kiradi
-const DEADLINE_MS = 52000;      // maxDuration (60 s) dan ancha kichik: oxirgi ish tugab saqlanishiga zaxira
-const MIN_JOB_MS = 30000;       // ish boshlash uchun kamida shuncha vaqt qolishi kerak
+const DEADLINE_MS = 54000;      // maxDuration (60 s) dan kichik: oxirgi ish tugab saqlanishiga zaxira
+const MIN_JOB_MS = 40000;       // ish boshlash uchun kamida shuncha vaqt qolishi kerak (Groq'ga ~36 s beriladi)
+const MAX_ATTEMPTS = 6;         // bitta rasm shuncha urinishdan keyingina "Xato" bo'ladi
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const secret = () => process.env.CRON_SECRET || crypto.createHash('sha256').update('ayahchecks:' + (process.env.SUPABASE_SERVICE_ROLE_KEY || '')).digest('hex');
 
@@ -40,12 +41,13 @@ async function stillHalted(st) {
 }
 
 async function callGroq(model, image, timeoutMs) {
+  const t0 = Date.now();
   const body = {
-    model, temperature: 0.05, max_tokens: 8000, response_format: { type: 'json_object' },
+    model, temperature: 0.05, max_tokens: 16000, response_format: { type: 'json_object' }, reasoning_effort: 'none',   // "o'ylash" tokenlari javobni uzib qo'ymasin
     messages: [{ role: 'user', content: [{ type: 'text', text: PROMPT }, { type: 'image_url', image_url: { url: image } }] }]
   };
   const once = async () => {
-    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), timeoutMs);
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), Math.max(5000, timeoutMs - (Date.now() - t0)));
     try {
       const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST', signal: ctl.signal,
@@ -56,10 +58,18 @@ async function callGroq(model, image, timeoutMs) {
   };
   try {
     let { r, data } = await once();
-    if (r.status === 400 && /response_format|json/i.test((data.error && data.error.message) || '')) { delete body.response_format; ({ r, data } = await once()); }
+    for (let i = 0; i < 3 && r.status === 400; i++) {   // model ba'zi parametrni qabul qilmasa — uni olib tashlab qayta uriniladi
+      const m = (data.error && data.error.message) || '';
+      if ('reasoning_effort' in body && /reasoning/i.test(m)) delete body.reasoning_effort;
+      else if (body.response_format && /response_format|json/i.test(m)) delete body.response_format;
+      else if (body.max_tokens > 8000 && /max_tokens|max_completion_tokens|context|too large|too long/i.test(m)) body.max_tokens = 8000;
+      else break;
+      ({ r, data } = await once());
+    }
     if (r.ok) {
       const ch = data.choices && data.choices[0], c = ch && ch.message && ch.message.content;
-      return c ? { kind: 'ok', content: c, finish: ch.finish_reason } : { kind: 'down', msg: "Groq bo'sh javob berdi" };
+      if (!c || !String(c).replace(/<think>[\s\S]*?<\/think>/gi, '').trim()) return { kind: 'empty', msg: "Groq bo'sh javob berdi", finish: ch && ch.finish_reason };
+      return { kind: 'ok', content: c, finish: ch.finish_reason };
     }
     const msg = (data.error && data.error.message) || 'Groq HTTP ' + r.status, ra = Number(r.headers.get('retry-after')) || 0;
     if (r.status === 401 || r.status === 403) return { kind: 'auth', msg };
@@ -68,8 +78,26 @@ async function callGroq(model, image, timeoutMs) {
     if (r.status >= 500 || r.status === 408) return { kind: 'down', msg };
     return { kind: 'bad', msg };
   } catch (e) {
-    return { kind: 'down', msg: e.name === 'AbortError' ? 'Groq javob bermadi (vaqt tugadi)' : "Groq'ga ulanib bo'lmadi" };
+    return e.name === 'AbortError' ? { kind: 'timeout', msg: 'Groq vaqtida javob bermadi' } : { kind: 'down', msg: "Groq'ga ulanib bo'lmadi" };
   }
+}
+
+// Javob uzilib qolsa (token tugadi): tugallangan oyatlarni saqlab qoladi
+function salvage(text) {
+  const s = String(text || '').replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/```(?:json)?/gi, '');
+  const at = s.indexOf('"ayahs"'), st = at < 0 ? -1 : s.indexOf('[', at);
+  if (st < 0) return null;
+  const ayahs = []; let depth = 0, from = -1, inStr = false, esc = false;
+  for (let i = st + 1; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) { if (esc) esc = false; else if (ch === '\\') esc = true; else if (ch === '"') inStr = false; continue; }
+    if (ch === '"') inStr = true;
+    else if (ch === '{') { if (depth++ === 0) from = i; }
+    else if (ch === '}') { if (--depth === 0 && from >= 0) { try { ayahs.push(JSON.parse(s.slice(from, i + 1))); } catch { /* buzuq oyat tashlanadi */ } from = -1; } }
+  }
+  if (!ayahs.length) return null;
+  const num = /"surah_number"\s*:\s*(\d+)/.exec(s), nm = /"surah"\s*:\s*"([^"]*)"/.exec(s);
+  return { surah: nm ? nm[1] : '', surah_number: num ? Number(num[1]) : 0, ayahs };
 }
 
 function parseJSON(text) {
@@ -98,9 +126,10 @@ async function processJob(job, deadline, warm) {
     const image = await sb.downloadImage(job.image_path);
     if (!image) return fail('Rasm serverda topilmadi. Qayta yuklang.');
 
-    const g = await callGroq(job.model, image, Math.max(10000, Math.min(50000, deadline - Date.now() - 4000)));
+    const g = await callGroq(job.model, image, Math.max(10000, Math.min(50000, deadline - Date.now() - 3500)));
     const st = await sb.getState();
     const next = { next_request_at: sb.iso(Date.now() + (g.kind === 'rate' ? Math.max(PAUSE_MS, g.retryMs) : PAUSE_MS)) };
+    const again = msg => job.attempts >= MAX_ATTEMPTS ? fail(msg + ' (' + MAX_ATTEMPTS + ' marta urinildi)') : requeue(msg + '. Qayta uriniladi');
 
     if (g.kind === 'auth') {
       await sb.patchState(next);
@@ -116,37 +145,50 @@ async function processJob(job, deadline, warm) {
     if (g.kind === 'down') {
       const fc = (st.fail_count || 0) + 1;
       await sb.patchState({ ...next, fail_count: fc });
-      // Groq o'chib qolsa rasm "Xato" bo'lmasin: 5-xatoda ilova to'xtaydi, ish navbatda qoladi.
-      // Faqat aynan shu rasm bir necha marta (6+) muammo bersa xato deb belgilanadi.
-      if (fc >= 5) { await halt('groq_down', 'Groq API 5 marta ketma-ket javob bermadi: ' + g.msg); return requeue('Groq ishlamayapti', false); }
-      return job.attempts >= 6 ? fail(g.msg) : requeue('Groq xatosi, qayta uriniladi: ' + g.msg);
+      // Faqat haqiqiy uzilishlar (5xx / tarmoq) ilovani to'xtatadi va 1 daqiqadan keyin o'zi qayta urinadi.
+      if (fc >= 5) { await halt('groq_down', 'Groq API 5 marta ketma-ket javob bermadi: ' + g.msg, 60000); return requeue('Groq ishlamayapti', true); }
+      return again('Groq xatosi: ' + g.msg);
     }
+    // Vaqt tugashi va bo'sh javob — bitta rasmning muammosi: ilovani to'xtatmaydi, faqat shu rasm qayta uriniladi
+    if (g.kind === 'timeout' || g.kind === 'empty') { await sb.patchState(next); return again(g.msg); }
     await sb.patchState({ ...next, fail_count: 0 });
     if (g.kind === 'big') return fail('Rasm juda katta. Kichikroq rasm yuklang.');
-    if (g.kind === 'bad') return fail(g.msg);
-    if (g.finish === 'length') return fail('Javob uzilib qoldi. Kamroq oyatli rasm yuklang.');
+    if (g.kind === 'bad') return job.attempts >= 3 ? fail(g.msg) : requeue(g.msg + '. Qayta uriniladi');
 
-    let parsed;
-    try { parsed = parseJSON(g.content); } catch (e) { return job.attempts >= 3 ? fail(e.message) : requeue(e.message + ' Qayta uriniladi.'); }
+    let parsed, cut = false;
+    try { parsed = parseJSON(g.content); } catch (e) { parsed = null; }
+    if (!parsed || g.finish === 'length') {             // javob uzilgan/buzuq: avval qayta urinamiz, oxirgi urinishda tugagan oyatlarni saqlaymiz
+      if (job.attempts < MAX_ATTEMPTS) return requeue(g.finish === 'length' ? 'Javob uzilib qoldi. Qayta uriniladi' : 'JSON buzuq keldi. Qayta uriniladi');
+      parsed = parsed || salvage(g.content);
+      if (!parsed) return fail('Javobni o\'qib bo\'lmadi. Rasmni qayta yuklang.');
+      cut = true;
+    }
+    (parsed.ayahs || []).forEach(a => {                 // full_arabic ni so'zlardan o'zimiz yig'amiz (modelga yozdirmaymiz: tez va aniq)
+      if (!a || !Array.isArray(a.words)) return;
+      a.words.sort((x, y) => (Number(x.index) || 0) - (Number(y.index) || 0));
+      a.full_arabic = a.words.map(w => w.arabic).join(' ');
+    });
     let v = Q.validate(parsed);
-    if (v.issues.some(i => i.lvl === 'err' && !i.ayah)) return fail('Rasmdan oyat topilmadi. Aniqroq rasm yuklang.');
+    if (v.issues.some(i => i.lvl === 'err' && !i.ayah)) return again("Rasmdan oyat topilmadi");
 
     await sb.patchJob(job.id, { status: 'verifying' });
     await warm;
     let ver = null;
     try { ver = await Q.verify(parsed); } catch (e) { console.error('verify:', e.message); }   // Mus'haf yuklanmasa ham natija saqlanadi
+    if (ver && ver.checked === 0 && job.attempts < 3) return requeue("Mus'hafdan mos oyat topilmadi. Qayta uriniladi");   // o'qish butunlay xato: saqlab "Tayyor" qilmaymiz
     if (ver) v = Q.validate(parsed);
+    if (cut) { parsed.incomplete = true; v.score = Math.min(v.score || 0, 50); }
 
     await sb.patchJob(job.id, { status: 'saving' });
     const checkId = await sb.insertCheck({
       id: job.id, user_id: job.user_id, surah: parsed.surah || '', surah_number: parsed.surah_number || null,
       ayah_count: (parsed.ayahs || []).length, score: v.score == null ? null : Math.round(v.score), file_name: Q.name.file(parsed), data: parsed
     });
-    await sb.patchJob(job.id, { status: 'done', check_id: checkId, image_path: null, message: (parsed.surah || '') + ' · ' + v.ayahs + ' oyat · ' + v.score + '%' });
+    await sb.patchJob(job.id, { status: 'done', check_id: checkId, image_path: null, message: (parsed.surah || '') + ' · ' + v.ayahs + ' oyat · ' + v.score + '%' + (cut ? ' · TO\'LIQ EMAS (javob uzilgan)' : '') });
     await sb.removeImage(job.image_path);
   } catch (e) {
     console.error('job', job.id, e.message);
-    await sb.patchJob(job.id, job.attempts >= 3 ? { status: 'error', message: e.message } : { status: 'queued', message: 'Server xatosi, qayta uriniladi' }).catch(() => {});
+    await sb.patchJob(job.id, job.attempts >= MAX_ATTEMPTS ? { status: 'error', message: e.message } : { status: 'queued', message: 'Server xatosi, qayta uriniladi' }).catch(() => {});
   }
 }
 
@@ -160,24 +202,30 @@ async function chainNext(req) {   // keyingi worker'ni ishga tushiradi (qulf bo'
 // Navbatni ishlaydi: har so'rovdan keyin PAUSE_MS pauza. Qulf handler'da olingan; bu yerda bo'shatiladi.
 async function loop(req) {
   const t0 = Date.now(), deadline = t0 + DEADLINE_MS;
-  let processed = 0, chain = false, warm = null, st;
+  let processed = 0, chain = false, warm = null, errors = 0;
   try {
     for (;;) {
-      st = await sb.getState();
-      if (st.halt_reason) break;
-      const peek = await sb.rpc('claim_next_job', { p_dry: true });   // ish bormi? (Stop bosilgan bo'lsa bo'sh)
-      if (!peek || !peek.length) break;
-      if (!warm) warm = Q.verifyLoad().catch(() => null);            // Mus'haf bazasini oldindan yuklab qo'yadi
-      const wait = Math.max(0, new Date(st.next_request_at || 0) - Date.now());
-      if (deadline - Date.now() - wait < MIN_JOB_MS) {               // vaqt yetmaydi: pauzani o'tkazib, keyingi worker'ga uzatamiz
-        await sleep(Math.max(0, Math.min(wait, deadline - Date.now() - 3000)));
-        chain = true; break;
+      try {
+        const st = await sb.getState();
+        if (st.halt_reason) break;
+        const peek = await sb.rpc('claim_next_job', { p_dry: true });   // ish bormi? (Stop bosilgan bo'lsa bo'sh)
+        if (!peek || !peek.length) break;
+        if (!warm) warm = Q.verifyLoad().catch(() => null);            // Mus'haf bazasini oldindan yuklab qo'yadi
+        const wait = Math.max(0, new Date(st.next_request_at || 0) - Date.now());
+        if (deadline - Date.now() - wait < MIN_JOB_MS) {               // vaqt yetmaydi: pauzani o'tkazib, keyingi worker'ga uzatamiz
+          await sleep(Math.max(0, Math.min(wait, deadline - Date.now() - 3000)));
+          chain = true; break;
+        }
+        if (wait) await sleep(wait);                                    // 20 s pauza
+        const c = await sb.rpc('claim_next_job', { p_dry: false });     // Stop shu orada bosilgan bo'lsa — bo'sh
+        if (!c || !c.length) continue;
+        await processJob(c[0], deadline, warm);                         // Stop bosilsa ham joriy ish oxirigacha bajariladi
+        processed++; errors = 0;
+      } catch (e) {                                                     // vaqtinchalik xato (baza/tarmoq) navbatni to'xtatib qo'ymasin
+        console.error('loop:', e.message);
+        if (++errors >= 3 || deadline - Date.now() < 8000) { await sleep(3000); chain = true; break; }
+        await sleep(1500);
       }
-      if (wait) await sleep(wait);                                    // 20 s pauza
-      const c = await sb.rpc('claim_next_job', { p_dry: false });     // Stop shu orada bosilgan bo'lsa — bo'sh
-      if (!c || !c.length) continue;
-      await processJob(c[0], deadline, warm);                         // Stop bosilsa ham joriy ish oxirigacha bajariladi
-      processed++;
     }
   } finally { await sb.rpc('release_worker').catch(() => {}); }
   if (chain) await chainNext(req);

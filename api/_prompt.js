@@ -22,10 +22,11 @@ H. Imlo: o', g', sh, ch, tutuq belgisi (') bilan; Alloh, Rabb, Payg'ambar, Qur'o
 I. O'zingdan yangi ma'no, tafsir yoki qavs ichida izoh qo'shma.
 
 OYAT MATNI:
-- "full_arabic" - so'zlarning index tartibida birlashtirilgan oyat (bo'shliq bilan).
 - "full_uzbek" - oyatning aniq, ravon, tafsirsiz tarjimasi. So'zma-so'z tarjima bilan mos bo'lsin (jumladagi "Sen/Siz" bir xil). Biror nashrdan yoddan ko'chirma.
 
 JAVOBDAN OLDIN TEKSHIR: har oyatda so'zlar soni kataklar soniga teng; barcha "Siz" shakllari "Sen"ga to'g'rilangan; "-i/-ni/-ning" kabi arabcha harakatdan ko'chgan ortiqcha qo'shimchalar yo'q.
 
+SURA: sura nomi rasmda aniq ko'rinmasa "surah" ni bo'sh, "surah_number" ni 0 qoldir. Taxmin qilma (sura keyin matn bo'yicha aniqlanadi).
+
 FAQAT shu JSON formatda javob ber (boshqa matn yo'q):
-{"surah":"sura nomi (arabcha)","surah_number":0,"ayahs":[{"number":1,"words":[{"index":1,"arabic":"...","uzbek":"..."}],"full_arabic":"...","full_uzbek":"..."}]}`;
+{"surah":"sura nomi (arabcha)","surah_number":0,"ayahs":[{"number":1,"words":[{"index":1,"arabic":"...","uzbek":"..."}],"full_uzbek":"..."}]}`;

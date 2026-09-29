@@ -27,3 +27,11 @@ Ixtiyoriy: `DAILY_LIMIT` (1000), `PAUSE_SECONDS` (20)
 ## Eslatma
 - Sessiya anonim: brauzer ma'lumotlarini (cookie/localStorage) tozalasangiz, oldingi navbat va natijalarni ko'ra olmaysiz.
 - Vercel Hobby'da `maxDuration` 60 s yetadi; `api/analyze.js` olib tashlangan (Groq faqat serverdan, worker orqali chaqiriladi).
+
+## Tuzatishlar (so'nggi yangilanish)
+- **Sura aniqlash**: endi har oyat alohida "ovoz" bermaydi. Butun sahifa uchun eng mos ketma-ket oyatlar yo'li topiladi (`js/verify.js`, `pickAll`); Baqara oxiri → Ali-Imron boshi kabi sura almashuvi ham to'g'ri chiqadi. Modelning sura raqami faqat ikkilamchi ishora.
+- **Mus'haf matni loyiha ichida** (`data/quran.json`): tashqi saytdan yuklanmaydi, worker sekinlashmaydi va uzilmaydi.
+- **"Javob uzilib qoldi"**: `reasoning_effort: none` + `max_tokens 16000`; `full_arabic` ni model emas, server yig'adi. Baribir uzilsa — qayta uriniladi, oxirgi urinishda tugagan oyatlar saqlanadi ("TO'LIQ EMAS" belgisi bilan).
+- **Kutilmagan to'xtashlar**: vaqt tugashi / bo'sh javob endi butun ilovani to'xtatmaydi (faqat shu rasm qayta uriniladi); haqiqiy Groq uzilishida ilova 1 daqiqadan keyin o'zi qayta urinadi; worker zanjiri vaqtinchalik baza xatosida ham uzilmaydi; rasm 6 urinishdan keyingina "Xato" bo'ladi.
+- `api/analyze.js` o'chirildi (kalitni tashqaridan sarflash mumkin edi).
+- Supabase'da `supabase/schema.sql` ni qayta ishga tushiring (uzilgan ish 3 emas, 6 urinishdan keyin xato bo'ladi).

@@ -1,6 +1,5 @@
 (function (Q) {
   const BSM = 'بسماللهالرحمنالرحيم', MARK = /[\u064B-\u065F\u0670]/, ANY = /[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/, ANNOT = /[\u06D6-\u06ED\u0640]/;
-  const EDITIONS = ['quran-simple', 'quran-uthmani'];  // birinchisida harakat bo'lmasa ikkinchisi olinadi
   let DB = null;
 
   async function getJSON(url) {
@@ -24,15 +23,16 @@
       list.push({ s: s.number, sn: s.name, n: a.numberInSurah, words: w, nw, plain, tri: tri(plain) });
       if (marked < 50 && MARK.test(a.text)) marked++;
     }));
-    return list.length ? { list, marks: marked >= 20 } : null;
+    const lastN = {}; list.forEach(x => { if (x.n > (lastN[x.s] || 0)) lastN[x.s] = x.n; });
+    return list.length ? { list, marks: marked >= 20, lastN } : null;
   }
   async function load() {
     if (DB) return DB;
-    for (const ed of EDITIONS) {
-      const db = build(await getJSON('https://api.alquran.cloud/v1/quran/' + ed));
-      if (db && (db.marks || ed === EDITIONS[EDITIONS.length - 1])) return (DB = db);
-    }
-    return null;
+    let j = null;
+    // Server: Mus'haf loyiha ichidagi fayldan o'qiladi (tashqi saytga bog'liq emas, sekinlashmaydi, uzilmaydi)
+    if (typeof window === 'undefined') { try { j = require('../data/quran.json'); } catch (e) { console.error('quran.json:', e.message); } }
+    else j = await getJSON('/data/quran.json');
+    return (DB = build(j) || null);
   }
 
   // So'zlar ketma-ketligini manba so'zlariga moslaydi (manbaning istalgan bo'lagiga)
@@ -51,23 +51,51 @@
     return { cost: D[p][jb], start: j, end: jb };
   }
 
-  // Raqamga ishonmaydi: oyatni matni bo'yicha topadi
-  function locate(a, list, hs, hn) {
-    const m = a.words.map(w => Q.norm(w.arabic)).filter(Boolean), M = m.join('');
-    if (!M) return null;
-    let cands = list.filter(x => x.plain.includes(M)).slice(0, 20);
-    const exact = cands.length;
-    if (!cands.length) {
+  // Bitta oyat uchun mumkin bo'lgan barcha Mus'haf oyatlari (sura bo'yicha cheklamaydi)
+  function candidates(a, list, hs) {
+    let m = a.words.map(w => Q.norm(w.arabic)).filter(Boolean), bsm = 0;
+    if (m.length > 4 && m.slice(0, 4).join('') === BSM) { m = m.slice(4); bsm = 4; }   // sura boshidagi Basmala oyat emas
+    const M = m.join('');
+    if (!M) return [];
+    let cs = list.filter(x => x.plain.includes(M));
+    const exact = cs.length;
+    if (cs.length > 300) cs = cs.filter(x => x.s === hs).concat(cs.filter(x => x.s !== hs)).slice(0, 300);
+    if (!cs.length) {
       const mt = tri(M);
-      cands = list.map(x => { let k = 0; mt.forEach(g => { if (x.tri.has(g)) k++; }); return [k, x]; })
-        .sort((x, y) => y[0] - x[0]).slice(0, 5).map(x => x[1]);
+      cs = list.map(x => { let k = 0; mt.forEach(g => { if (x.tri.has(g)) k++; }); return [k, x]; })
+        .sort((x, y) => y[0] - x[0]).slice(0, 8).map(x => x[1]);
     }
-    let best = null;
-    cands.forEach(x => {
-      const r = align(m, x.nw), sim = 1 - r.cost / m.length + (x.s === hs ? 0.001 : 0) + (x.n === hn ? 0.0005 : 0);
-      if (!best || sim > best.sim) best = { x, r, sim };
+    const out = [];
+    cs.forEach(x => { const r = align(m, x.nw), sim = 1 - r.cost / m.length; if (sim >= 0.5) out.push({ x, r, sim, exact, bsm }); });
+    return out;
+  }
+
+  // Sura raqamiga ishonmaydi va har oyatni alohida "ovozga" ham qo'ymaydi: butun sahifa uchun eng mos
+  // ketma-ket oyatlar yo'lini topadi (Viterbi). Ketma-ket kelgan oyatlar (n, n+1, n+2...) katta ustunlik oladi,
+  // shuning uchun "الحمد لله" kabi boshqa suralarda ham uchraydigan iboralar noto'g'ri surani tanlatib qo'ymaydi.
+  function pickAll(ays, db, hs) {
+    const lastN = db.lastN, res = new Array(ays.length).fill(null);
+    const trans = (p, c, gap) => {
+      if (c.x.s === p.x.s) { const d = c.x.n - p.x.n; return d === gap ? 0.6 : d > 0 && d <= gap + 2 ? 0.25 : d > 0 ? 0.05 : -0.2; }
+      if (c.x.s === p.x.s + 1) { const off = gap - (lastN[p.x.s] - p.x.n); if (off >= 1 && c.x.n === off) return 0.6; }   // sura oxiri -> keyingi sura boshi
+      return 0;
+    };
+    const chain = []; let prev = null, pk = -1;
+    ays.forEach((a, k) => {
+      const cs = candidates(a, db.list, hs); if (!cs.length) return;
+      const layer = cs.map(c => {
+        let best = 0, back = -1;
+        if (prev) prev.forEach((p, pi) => { const v = p.total + trans(p.c, c, k - pk); if (back < 0 || v > best) { best = v; back = pi; } });
+        const em = c.sim + (c.x.s === hs ? 0.08 : 0) + (c.x.n === Number(a.number) ? 0.03 : 0);
+        return { c, k, total: em + (prev ? best : 0), back };
+      });
+      chain.push(layer); prev = layer; pk = k;
     });
-    return best && best.sim >= 0.5 ? { x: best.x, r: best.r, alt: exact } : null;
+    if (!chain.length) return res;
+    const last = chain[chain.length - 1]; let bi = 0;
+    last.forEach((s, i) => { if (s.total > last[bi].total) bi = i; });
+    for (let li = chain.length - 1; li >= 0; li--) { const s = chain[li][bi]; res[s.k] = s.c; bi = s.back; }
+    return res;
   }
 
   // So'zlarni (model xato ajratgan bo'lsa ham) Mus'haf oyatlariga qayta taqsimlaydi: 3-oyat 4-oyatga qo'shilib ketmasin
@@ -83,9 +111,8 @@
     while (i > 0) { if (j === 0) { i--; continue; } const t = P[i][j]; if (t === 0) { map[i - 1] = j - 1; i--; j--; } else if (t === 1) i--; else j--; }
     return map;
   }
-  function reflow(data, db) {
+  function reflow(data, db, hits) {
     const ays = (data && data.ayahs) || []; if (!ays.length) return false;
-    const hits = ays.map(a => locate(a, db.list, Number(data.surah_number), Number(a.number)));
     if (hits.some(h => !h)) return false;                       // ishonchsiz bo'lsa tegmaymiz
     const s = hits[0].x.s; if (hits.some(h => h.x.s !== s)) return false;
     const ns = hits.map(h => h.x.n), lo = Math.min(...ns) - 2, hi = Math.max(...ns) + 2;
@@ -146,26 +173,29 @@
   Q.verify = async function (data) {
     const db = await load();
     if (!db) return null;
-    try { reflow(data, db); } catch (e) { /* ajratish o'zgarmaydi */ }
+    const hs = Number(data.surah_number);
+    let picks = pickAll(data.ayahs, db, hs);
+    try { if (reflow(data, db, picks)) picks = pickAll(data.ayahs, db, hs); } catch (e) { /* ajratish o'zgarmaydi */ }
     const votes = new Map(); let checked = 0;
-    data.ayahs.forEach(a => {
-      const hit = locate(a, db.list, Number(data.surah_number), Number(a.number));
+    data.ayahs.forEach((a, k) => {
+      const hit = picks[k];
       if (!hit) { a.src = null; a.verified = null; return; }
       const slice = hit.x.words.slice(hit.r.start, hit.r.end), st = slice.join(' ');
-      const mt = a.words.map(w => w.arabic).join(' '), d = diff(mt, st, db.marks);
+      const mt = a.words.slice(hit.bsm).map(w => w.arabic).join(' '), d = diff(mt, st, db.marks);
       a.verified = Q.sim(Q.norm(mt), Q.norm(st));
       a.lDiff = d.l; a.mkDiff = db.marks ? d.h : null; a.diff = d.seg;
-      a.src = { s: hit.x.s, n: hit.x.n, alt: hit.alt, text: st, partial: slice.length < hit.x.words.length };
+      a.src = { s: hit.x.s, n: hit.x.n, alt: hit.exact, text: st, partial: slice.length < hit.x.words.length };
       if (Number(a.number) !== hit.x.n) a.modelNumber = a.number;
       a.number = hit.x.n;
       votes.set(hit.x.s, (votes.get(hit.x.s) || 0) + 1); checked++;
     });
     if (votes.size) {
-      const s = [...votes.entries()].sort((x, y) => y[1] - x[1])[0][0];
+      const s = [...votes.entries()].sort((x, y) => y[1] - x[1] || (y[0] === hs) - (x[0] === hs))[0][0];
+      if (hs && hs !== s) data.model_surah_number = hs;
       data.surah_number = s; data.surah = (db.list.find(x => x.s === s) || {}).sn || data.surah;
     }
-    return { checked, marks: db.marks };
+    return { checked, total: data.ayahs.length, marks: db.marks };
   };
   Q.verifyLoad = load;   // server oldindan isitib qo'yishi uchun
-  Q._v = { diff, align, reflow };   // test uchun
+  Q._v = { diff, align, reflow, pickAll };   // test uchun
 })(typeof window !== "undefined" ? window.QW : globalThis.QW);
