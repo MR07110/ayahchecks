@@ -42,21 +42,22 @@
         el('div', 'ayah-number', a.number, head);
         if (a.src) {
           const exact = !a.lDiff && !a.mkDiff, near = a.verified >= C.VERIFY_MIN;
-          el('span', 'badge ' + (exact ? 'ok' : 'warn'), exact ? "Manba bilan aynan mos" : near ? 'Farq: ' + (a.lDiff ? a.lDiff + ' harf, ' : '') + (a.mkDiff || 0) + ' harakat' : 'Manbadan farq ' + Math.round(a.verified * 100) + '%', head);
+          el('span', 'badge ' + (exact || a.fixed ? 'ok' : 'warn'), exact ? "Manba bilan aynan mos" : a.fixed ? "Mus'hafga tenglashtirildi (" + a.fixed + " so'z)" : near ? 'Farq: ' + (a.lDiff ? a.lDiff + ' harf, ' : '') + (a.mkDiff || 0) + ' harakat' : 'Manbadan farq ' + Math.round(a.verified * 100) + '%', head);
           if (a.modelNumber != null) el('span', 'badge warn', 'Model raqami ' + a.modelNumber + ' → tuzatildi', head);
         } else if (a.src === null) el('span', 'badge warn', 'Manbadan topilmadi', head);
         const grid = el('div', 'words-grid', null, box);
         a.words.forEach(w => {
           const c = el('div', 'word-cell' + (w._bad ? ' bad' : ''), null, grid);
-          el('div', 'word-index', w.index, c); el('div', 'word-arabic', w.arabic, c); el('div', 'word-uzbek', w.uzbek, c);
-          c.tabIndex = 0; c.title = w.fix ? "Rasmda: " + w.fix + " (lug'at bilan tuzatildi)" : 'Tarjimani nusxalash'; if (w.fix) c.classList.add('fixed');
+          el('div', 'word-index', w.index, c); if (w.modelArabic) el('div', 'word-before', w.modelArabic, c); el('div', 'word-arabic', w.arabic, c); el('div', 'word-uzbek', w.uzbek, c);
+          if (w.modelArabic) { c.classList.add('mfix'); c.title = "Model: " + w.modelArabic + " → Mus'haf: " + w.arabic; }
+          c.tabIndex = 0; if (!w.modelArabic) c.title = w.fix ? "Rasmda: " + w.fix + " (lug'at bilan tuzatildi)" : 'Tarjimani nusxalash'; if (w.fix) c.classList.add('fixed');
           const go = () => { ui.copy(w.uzbek); c.classList.add('copied'); setTimeout(() => c.classList.remove('copied'), 700); };
           c.addEventListener('click', go);
           c.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
         });
         const full = el('div', 'ayah-full-block', null, box);
         el('div', 'ayah-full-label', "To'liq oyat", full); el('div', 'ayah-full-arabic', a.full_arabic, full); el('div', 'ayah-full-text', a.full_uzbek, full);
-        if (a.src) ui.diff(box, a);
+        if (a.src && (a.fixed || a.lDiff || a.mkDiff)) ui.diff(box, a);   // to'g'ri oyatda "keyin" bloki chiqmaydi
       });
       $('rawJson').textContent = JSON.stringify(data, (k, val) => k === '_bad' ? undefined : val, 2);
       $('metaInfo').textContent = metaText || '';
@@ -76,7 +77,7 @@
     },
     diff(box, a) {
       const d = el('details', 'diff', null, box);
-      d.open = !!(a.lDiff || a.mkDiff);
+      d.open = true;   // faqat xato/tuzatilgan oyatlar uchun chaqiriladi, avtomatik ochiq
       el('summary', '', 'Manba va farqlar (' + a.src.s + ':' + a.src.n + ')', d);
       const info = el('div', 'diff-src', null, d);
       info.appendChild(document.createTextNode('Manba: Uthmoniy Mus\'haf · ' + a.src.s + '-sura, ' + a.src.n + '-oyat' + (a.src.partial ? " (bo'lak)" : '') + (a.src.alt > 1 ? ' · bu matn ' + a.src.alt + ' joyda uchraydi' : '') + ' · '));

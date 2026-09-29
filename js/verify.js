@@ -136,6 +136,23 @@
     return true;
   }
 
+  // Modelning arabcha so'zlarini Mus'haf so'zlari bilan almashtiradi (o'zbekcha tarjimaga tegmaydi).
+  // Faqat ishonchli mos kelgan so'zlar almashadi; katak soni o'zgarmaydi.
+  function fixWords(a, slice, bsm) {
+    const ws = a.words.slice(bsm), m = ws.map(w => Q.norm(w.arabic)), c = slice.map(Q.norm);
+    let map;
+    if (ws.length === slice.length) map = ws.map((_, i) => i);
+    else map = mapWords(m, c);
+    let n = 0;
+    ws.forEach((w, i) => {
+      const j = map[i]; if (j == null || j < 0) return;
+      if (Q.sim(m[i], c[j]) < 0.6) return;                 // juda farq qilsa tegmaymiz
+      if (w.arabic !== slice[j]) { w.modelArabic = w.arabic; w.arabic = slice[j]; n++; }
+    });
+    if (n) a.full_arabic = a.words.map(w => w.arabic).join(' ');
+    return n;
+  }
+
   // Harf+harakat klasterlari bo'yicha diff (LCS)
   function clusters(t) {
     const o = [];
@@ -189,6 +206,7 @@
       const slice = hit.x.words.slice(hit.r.start, hit.r.end), st = slice.join(' ');
       const mt = a.words.slice(hit.bsm).map(w => w.arabic).join(' '), d = diff(mt, st, db.marks);
       a.verified = Q.sim(skel(mt), skel(st));
+      a.fixed = fixWords(a, slice, hit.bsm);   // arabcha matnni Mus'haf bilan 100% tenglashtiradi
       a.lDiff = d.l; a.mkDiff = db.marks ? d.h : null; a.diff = d.seg;
       a.src = { s: hit.x.s, n: hit.x.n, alt: hit.exact, text: st, partial: slice.length < hit.x.words.length };
       if (Number(a.number) !== hit.x.n) a.modelNumber = a.number;
