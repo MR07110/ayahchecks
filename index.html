@@ -3,47 +3,84 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AyahChecks — Jarayon</title>
-<link rel="icon" href="/favicon.ico" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
-<link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon-192.png">
-<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<title>AyahChecks — Qur'on so'zma-so'z</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <meta name="theme-color" content="#6b4423">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/style.css">
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <div class="container">
-  <img class="logo" src="/assets/logo.png" alt="AyahChecks logotipi">
+  <img class="logo" src="assets/logo.png" alt="AyahChecks logotipi">
   <h1>AyahChecks</h1>
   <div class="divider">﷽</div>
-  <nav class="tabs">
-    <a class="tab active" href="/">Jarayon</a>
-    <a class="tab" href="/input">Kirish</a>
-    <a class="tab" href="/output">Natijalar</a>
-  </nav>
-  <p class="subtitle">Bu sahifa faqat ko'rish uchun: hozir nima bo'layotgani jonli chiqadi</p>
-  <div class="live-card" id="liveCard">
-    <div class="live-dot" id="liveDot"></div>
-    <div><div class="live-title" id="liveTitle">Yuklanmoqda...</div><div class="live-sub" id="liveSub"></div></div>
+  <p class="subtitle">So'zma-so'z ajratilgan rasmni yuklang</p>
+  <div class="tabs">
+    <button class="tab active" data-tab="scan">Tahlil qilish</button>
+    <button class="tab" data-tab="history">Tarix (<span id="historyCount">0</span>)</button>
   </div>
-  <div id="jobList"></div>
-  <div class="error" id="errorBox"></div>
+
+  <section class="tab-content active" id="tab-scan">
+    <div class="api-section">
+      <label id="providerLabel">Provayder</label>
+      <div class="toggle" id="providerToggle" role="radiogroup" aria-labelledby="providerLabel"></div>
+    </div>
+    <div class="api-section">
+      <label for="apiKeyInput" id="apiKeyLabel">API kaliti</label>
+      <input type="password" id="apiKeyInput" autocomplete="off">
+      <div class="api-hint">Kalit olish: <a id="apiHintLink" target="_blank" rel="noopener"></a></div>
+    </div>
+    <div class="api-section">
+      <label for="modelSelect">Model</label>
+      <select id="modelSelect"></select>
+    </div>
+    <label class="drop-zone" id="dropZone" for="imageInput">
+      <div class="title">So'zma-so'z rasmni bu yerga tashlang</div>
+      <div class="subtitle-small">yoki bosing · yoki Ctrl+V bilan qo'ying</div>
+      <input type="file" id="imageInput" accept="image/*">
+    </label>
+    <img id="preview" alt="">
+    <button class="primary" id="runBtn" disabled>Ajratish</button>
+
+    <div class="result" id="result">
+      <div class="result-header">
+        <div class="surah-name" id="surahName"></div>
+        <div class="surah-info" id="surahInfo"></div>
+      </div>
+      <div class="report" id="report"></div>
+      <div id="ayahList"></div>
+      <div class="actions">
+        <button id="copyBtn">Nusxalash</button>
+        <button id="jsonBtn">JSON ko'rish</button>
+      </div>
+      <pre class="raw-json" id="rawJson"></pre>
+      <div class="meta" id="metaInfo"></div>
+    </div>
+    <div class="warning-box" id="warningBox"></div>
+    <div class="error" id="errorBox"></div>
+  </section>
+
+  <section class="tab-content" id="tab-history">
+    <div class="history-toolbar" id="historyToolbar" hidden>
+      <span id="historyInfo"></span>
+      <button class="icon-btn danger" id="clearAllBtn" title="Barchasini o'chirish">✕</button>
+    </div>
+    <div id="historyList"></div>
+  </section>
 </div>
 <div class="toast" id="toast"></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/js/config.js"></script>
-<script src="/js/naming.js"></script>
-<script src="/js/supa.js"></script>
-<script src="/js/live.js"></script>
-<script src="/js/auth.js"></script>
-<script src="/js/storage.js"></script>
-<script src="/js/jobs.js"></script>
-<script src="/js/outbox.js"></script>
-<script src="/js/run.js"></script>
-<script src="/js/ui.js"></script>
-<script src="/js/monitor.js"></script>
+
+<script src="js/config.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/validate.js"></script>
+<script src="js/verify.js"></script>
+<script src="js/api.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
 </body>
 </html>

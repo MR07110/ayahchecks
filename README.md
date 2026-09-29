@@ -1,55 +1,8 @@
-# AyahChecks (Vercel + Supabase)
+# AyahChecks
+`index.html` ni brauzerda oching (server shart emas). Provayderni tanlang (Groq yoki Ollama Cloud), kalitni kiriting, rasmni tashlang.
+Kalit brauzerning localStorage'ida saqlanadi (har provayder uchun alohida). Ikkala kalit ham kiritilsa, 429/5xx/timeout bo'lganda ikkinchisiga avtomatik o'tadi (`CFG.FALLBACK`).
 
-Rasmlar Supabase Storage'ga yuklanadi, tahlilni **server** (`api/worker.js`) qiladi. Boshlash bosilgach brauzerni yopsangiz ham navbat davom etadi.
-
-## Sahifalar
-- `/` — faqat ko'rish: jonli jarayon (Realtime + 5 s da yangilanish)
-- `/input` — rasm kiritish, tartiblash, nomini o'zgartirish, **Boshlash / To'xtatish**
-- `/output` — tayyor natijalar, JSON, ZIP
-
-## Qanday ishlaydi
-- **Boshlash / To'xtatish** holati bazada (`user_state`) — barcha tab va qurilmada bir xil. To'xtatishda joriy ish oxirigacha bajariladi, keyingisi olinmaydi.
-- **Sur'at**: bitta so'rov → tugagach **20 s pauza** → keyingisi (`PAUSE_SECONDS`, standart 20). Jami ~1.5–2 ta rasm/daqiqa (Groq javob tezligiga bog'liq).
-- **Doimiy ishlash**: worker o'zi zanjir bo'lib davom etadi (har chaqiruv ~52 s); uzilsa `supabase/cron.sql` (pg_cron, har 30 s) va brauzer qayta uyg'otadi. Bir vaqtda bitta worker (`app_state.lease_until`).
-- **Groq ishlamasa** (401/403 kalit, kunlik limit, 5 marta ketma-ket xato): navbat to'xtaydi, butun ilova **qip-qizil** bo'ladi, ish yo'qolmaydi (navbatga qaytadi). GROQ_API_KEY ni yangilab Redeploy qilsangiz — server kalitni o'zi tekshirib (`/models`, token sarflamaydi) **sahifani yangilamasdan** davom etadi.
-- Uzilib qolgan (3 daqiqa yangilanmagan) ish avtomatik navbatga qaytadi; 3 marta uzilsa "Xato" bo'ladi (↻ tugmasi bilan qayta urinish).
-
-## Env (Vercel > Settings > Environment Variables)
-`GROQ_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (endi **majburiy**), `CRON_SECRET` (pg_cron uchun; o'zingiz o'ylab toping)
-Ixtiyoriy: `DAILY_LIMIT` (1000), `PAUSE_SECONDS` (20)
-
-## Ishga tushirish
-1. Supabase: Authentication > Sign In / Providers > Anonymous sign-ins ni yoqing
-2. SQL Editor: `supabase/schema.sql` ni ishga tushiring (qayta ishga tushirish xavfsiz; yangi qismlar 4-bo'limda)
-3. Vercel'ga deploy (Framework: Other), env'lardan keyin Redeploy
-4. `supabase/cron.sql` da 2 ta qiymatni (sayt manzili, CRON_SECRET) almashtirib ishga tushiring (pg_cron + pg_net yoqilgan bo'lsin)
-
-## Eslatma
-- Sessiya anonim: brauzer ma'lumotlarini (cookie/localStorage) tozalasangiz, oldingi navbat va natijalarni ko'ra olmaysiz.
-- Vercel Hobby'da `maxDuration` 60 s yetadi; `api/analyze.js` olib tashlangan (Groq faqat serverdan, worker orqali chaqiriladi).
-
-## Tuzatishlar (so'nggi yangilanish)
-- **Sura aniqlash**: endi har oyat alohida "ovoz" bermaydi. Butun sahifa uchun eng mos ketma-ket oyatlar yo'li topiladi (`js/verify.js`, `pickAll`); Baqara oxiri → Ali-Imron boshi kabi sura almashuvi ham to'g'ri chiqadi. Modelning sura raqami faqat ikkilamchi ishora.
-- **Mus'haf matni loyiha ichida** (`data/quran.json`): tashqi saytdan yuklanmaydi, worker sekinlashmaydi va uzilmaydi.
-- **"Javob uzilib qoldi"**: `reasoning_effort: none` + `max_tokens 16000`; `full_arabic` ni model emas, server yig'adi. Baribir uzilsa — qayta uriniladi, oxirgi urinishda tugagan oyatlar saqlanadi ("TO'LIQ EMAS" belgisi bilan).
-- **Kutilmagan to'xtashlar**: vaqt tugashi / bo'sh javob endi butun ilovani to'xtatmaydi (faqat shu rasm qayta uriniladi); haqiqiy Groq uzilishida ilova 1 daqiqadan keyin o'zi qayta urinadi; worker zanjiri vaqtinchalik baza xatosida ham uzilmaydi; rasm 6 urinishdan keyingina "Xato" bo'ladi.
-- `api/analyze.js` o'chirildi (kalitni tashqaridan sarflash mumkin edi).
-- Supabase'da `supabase/schema.sql` ni qayta ishga tushiring (uzilgan ish 3 emas, 6 urinishdan keyin xato bo'ladi).
-- **Diff (Mus'haf bilan solishtirish)**: model Naskh uslubida (`ا`, `ْ`), Mus'haf Uthmoniy uslubda (`ٰ`, `ۡ`, `ٱ`) yozadi. Bu farqlar endi xato hisoblanmaydi (belgisiz alif, sukun, kichik alif, maddah, hamza belgisi, ochiq tanvin). Haqiqiy harf va harakat (fatha/kasra/damma/shadda/tanvin) xatolari esa ushlanadi.
-- "Takroriy tarjima" ogohlantirishi faqat ketma-ket bir xil tarjimada chiqadi ("ularga" kabi to'g'ri takrorlar hisobga olinmaydi).
-- **Qurilmalar orasida jonli sinxron** (`js/live.js`): Jarayon, Kirish va Natijalar sahifalari endi Realtime + o'zi qayta ulanish + har 5–8 s da tekshirish + fon/uyqudan qaytganda darrov yangilash bilan ishlaydi. Boshqa qurilmada tartib o'zgarsa, yangi rasm qo'shilsa, o'chirilsa yoki natija tayyor bo'lsa — refreshsiz ko'rinadi. `checks` jadvali ham Realtime'ga qo'shildi (`schema.sql` ni qayta ishga tushiring).
-
-## Ikki model: rasm modeli + matn modeli
-- **Rasm modeli** (sahifadagi "Rasm modeli" tanlovi): faqat rasmni oddiy matnga (transkript) aylantiradi: `RAQAM | ARABCHA | O'ZBEKCHA`. Tarjima qilmaydi, tuzatmaydi, JSON yozmaydi (`api/_prompt.js`).
-- **Matn modeli** (`TEXT_MODEL` env, standart `llama-3.3-70b-versatile`): transkriptdan JSON yasaydi, oyatlarga bo'ladi, bo'sh kataklarga tarjima yozadi (`api/_prompt_text.js`). Rasmni ko'rmaydi.
-- Keyin server Mus'haf bilan tekshiradi va arabcha matnni Mus'hafga tenglashtiradi (`js/verify.js`).
-- Har ishda ikkita Groq so'rovi ketadi; natija JSON'ida `transcript` (rasm modeli nimani ko'rgani) va `models` saqlanadi: xato bo'lsa shundan qaraladi.
-- Rasm bo'yicha 2-o'tish (review) olib tashlandi: rasm modeli endi boshqa ish qilmaydi.
-- Vercel env: `TEXT_MODEL` (ixtiyoriy). Model nomi topilmasa ish "Matn modeli topilmadi" xatosi bilan tugaydi.
-
-## Token tejash (sifatni pasaytirmasdan)
-- **Transkriptni server o'zi JSON'ga aylantiradi** (`parseTranscript`): matn modeli endi butun natijani qayta yozmaydi, faqat **bo'sh tarjimalarni** yozadi (chiqish tokeni ~90% kam). Arabcha va kitob tarjimasi aynan ko'chiriladi — model o'zgartira olmaydi. Bo'sh katak bo'lmasa matn modeli umuman chaqirilmaydi.
-- **Transkript keshi** (`jobs.transcript`): matn bosqichi yoki JSON xato bersa, qayta urinishda rasm modeli qayta chaqirilmaydi. Mus'haf mos kelmasa (transkript yaroqsiz) esa kesh o'chadi va rasm qayta o'qiladi.
-- **Tugmani ketma-ket bosish**: Boshlash/To'xtatish bitta so'rov yuboradi (qo'shimcha bosishlar e'tiborga olinmaydi); worker'ni uyg'otish kamida 4 s oralig'ida.
-- `supabase/schema.sql` ni qayta ishga tushiring (yangi `transcript` ustuni).
-- `TEXT_MODEL` bo'sh bo'lsa (standart) tarjima bosqichi ham tanlangan rasm modeli (Qwen) bilan bajariladi. `TEXT_MODEL` berilgan-u hisobda yo'q bo'lsa, o'zi rasm modeliga o'tadi ("Matn modeli topilmadi" xatosi chiqmaydi).
+- `js/validate.js` — ichki tekshiruv (indeks, bo'sh katak, ???, takror, so'z↔oyat mosligi)
+- `js/verify.js` — natijani ochiq Mus'haf matni (alquran.cloud) bilan solishtiradi
+- `js/api.js` — OpenAI-mos so'rov (Groq / Ollama Cloud): retry, timeout, JSON-fallback
+- `js/config.js` — barcha sozlamalar (provayderlar, modellar, limit, chegara)

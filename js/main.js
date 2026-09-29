@@ -3,22 +3,39 @@
   let file = null, last = null, busy = false;
 
   // ---- boshlang'ich holat ----
-  const sel = $('modelSelect');
-  C.MODELS.forEach(([id, name]) => { const o = document.createElement('option'); o.value = id; o.textContent = name; sel.appendChild(o); });
-  const savedModel = Q.store.get(C.K_MODEL, '');
-  if (C.MODELS.some(m => m[0] === savedModel)) sel.value = savedModel;
-  sel.addEventListener('change', () => Q.store.set(C.K_MODEL, sel.value));
-
-  [['autoRun', C.K_AUTORUN, true], ['autoCopy', C.K_AUTOCOPY, false]].forEach(([id, k, d]) => {
-    $(id).checked = Q.store.get(k, d);
-    $(id).addEventListener('change', e => Q.store.set(k, e.target.checked));
+  const PV = C.PROVIDERS, tg = $('providerToggle'), sel = $('modelSelect');
+  let prov = Q.store.get(C.K_PROVIDER, 'groq'); if (!PV[prov]) prov = 'groq';
+  Object.keys(PV).forEach(id => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.dataset.id = id; b.textContent = PV[id].name; b.setAttribute('role', 'radio');
+    b.addEventListener('click', () => { if (busy || id === prov) return; prov = id; Q.store.set(C.K_PROVIDER, prov); applyProvider(); });
+    tg.appendChild(b);
   });
+
+  function readKey(id) {
+    let k = Q.store.get(PV[id].kKey, '');
+    if (!k) { try { k = localStorage.getItem(PV[id].kKey) || ''; } catch { k = ''; } }
+    return k;
+  }
+  function modelFor(id) {
+    const saved = Q.store.get(PV[id].kModel, '');
+    return PV[id].models.some(x => x[0] === saved) ? saved : PV[id].models[0][0];
+  }
+  function applyProvider() {
+    const P = PV[prov];
+    tg.querySelectorAll('button').forEach(b => { const on = b.dataset.id === prov; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+    $('apiKeyLabel').textContent = P.keyLabel; $('apiKeyInput').placeholder = P.ph; $('apiKeyInput').value = readKey(prov);
+    const l = $('apiHintLink'); l.href = P.helpUrl; l.textContent = P.helpText;
+    sel.innerHTML = '';
+    P.models.forEach(([id, name]) => { const o = document.createElement('option'); o.value = id; o.textContent = name; sel.appendChild(o); });
+    sel.value = modelFor(prov);
+  }
+  $('apiKeyInput').addEventListener('input', e => Q.store.set(PV[prov].kKey, e.target.value.trim()));
+  sel.addEventListener('change', () => Q.store.set(PV[prov].kModel, sel.value));
+  applyProvider();
 
   const refreshHistory = () => ui.history(openItem, delItem);
   refreshHistory();
-  // Supabase: anonim sessiya + tarixni yuklash
-  Q.supa.ready.then(() => Q.hist.load()).then(refreshHistory)
-    .catch(e => { console.error(e); ui.error(e.message || "Serverga ulanib bo'lmadi."); });
 
   // ---- tablar ----
   function showTab(name) {
@@ -38,7 +55,6 @@
     const p = $('preview'); if (p.dataset.url) URL.revokeObjectURL(p.dataset.url);
     p.dataset.url = URL.createObjectURL(file); p.src = p.dataset.url; p.style.display = 'block';
     $('runBtn').disabled = false; ui.toast('Rasm yuklandi');
-    if ($('autoRun').checked) run();
   }
   $('imageInput').addEventListener('change', e => handleFile(e.target.files && e.target.files[0]));
   const dz = $('dropZone');
@@ -52,43 +68,46 @@
   });
 
   // ---- tahlil ----
-  async function run() {
+  $('runBtn').addEventListener('click', async () => {
     if (busy) return;
+    const k = $('apiKeyInput').value.trim();
+    if (!k) return ui.error(PV[prov].name + " API kalitini kiriting.");
     if (!file) return ui.error('Rasm tanlang.');
     busy = true; const btn = $('runBtn'); btn.disabled = true; btn.textContent = 'Ajratilmoqda...';
     ui.hideError(); ui.hideResult(); ui.hideWarn();
     try {
-      await Q.supa.ready;
-      const { parsed, usage, ms } = await Q.api.analyze({ file, model: sel.value, onStatus: s => { btn.textContent = s; } });
+      const onStatus = s => { btn.textContent = s; };
+      let used = prov, res;
+      try { res = await Q.api.analyze({ file, key: k, model: sel.value, provider: prov, onStatus }); }
+      catch (e) {
+        const other = Object.keys(PV).find(id => id !== prov && readKey(id));
+        if (!(C.FALLBACK && e.retryable && other)) throw e;
+        used = other; btn.textContent = PV[other].name + " ga o'tilmoqda...";
+        res = await Q.api.analyze({ file, key: readKey(other), model: modelFor(other), provider: other, onStatus });
+      }
+      const { parsed, usage, ms } = res, usedModel = used === prov ? sel.value : modelFor(used);
       let v = Q.validate(parsed);
       if (v.issues.some(i => i.lvl === 'err' && !i.ayah)) throw new Error("Rasmdan oyat topilmadi. Aniqroq rasm yuklang.");
-      const meta = 'Model: ' + sel.value + ' · ' + (ms / 1000).toFixed(1) + ' s' + (usage ? ' · ' + usage.total_tokens + ' token' : '');
+      const meta = PV[used].name + ' · ' + usedModel + ' · ' + (ms / 1000).toFixed(1) + ' s' + (usage ? ' · ' + usage.total_tokens + ' token' : '');
       last = parsed; ui.result(parsed, v, meta);
       btn.textContent = "Mus'haf bilan solishtirilmoqda...";
       const ver = await Q.verify(parsed);           // tarmoq xatosi bo'lsa null — natija baribir saqlanadi
       if (ver) { v = Q.validate(parsed); ui.result(parsed, v, meta); }
-      try { await Q.hist.add(parsed, v.score); refreshHistory(); } catch (e) { console.error(e); ui.toast(e.message, 4000); }
-      if ($('autoCopy').checked) ui.copy(parsed.ayahs.map(a => a.full_uzbek).filter(Boolean).join('\n'));
+      Q.hist.add(parsed); refreshHistory();
       ui.warn("Diqqat: natija sun'iy intellekt tomonidan o'qilgan" + (ver ? '. Yashil belgi — ochiq Mus\'haf matni bilan mos kelganini bildiradi' : '') + ". Muhim joylarni asl Mus'haf bilan tekshiring.");
     } catch (e) { console.error(e); ui.error(e.message || 'Xatolik.'); }
     finally { busy = false; btn.disabled = false; btn.textContent = 'Ajratish'; }
-  }
-  $('runBtn').addEventListener('click', run);
+  });
 
   // ---- tarix ----
-  async function openItem(id) {
-    try {
-      const data = await Q.hist.get(id);
-      last = data; ui.result(last, Q.validate(last), 'Tarixdan ochildi');
-      showTab('scan'); $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } catch (e) { ui.error(e.message); }
+  function openItem(id) {
+    const it = Q.hist.list().find(x => x.id === id); if (!it) return;
+    last = it.data; ui.result(last, Q.validate(last), 'Tarixdan ochildi');
+    showTab('scan'); $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
-  async function delItem(id) {
-    try { await Q.hist.remove(id); refreshHistory(); ui.toast("O'chirildi"); } catch (e) { ui.error(e.message); }
-  }
-  $('clearAllBtn').addEventListener('click', async () => {
-    if (!confirm("Barcha tarixni o'chirasizmi?")) return;
-    try { await Q.hist.clear(); refreshHistory(); ui.toast("Barcha tarix o'chirildi"); } catch (e) { ui.error(e.message); }
+  function delItem(id) { if (Q.hist.remove(id)) { refreshHistory(); ui.toast("O'chirildi"); } }
+  $('clearAllBtn').addEventListener('click', () => {
+    if (confirm("Barcha tarixni o'chirasizmi?") && Q.hist.clear()) { refreshHistory(); ui.toast("Barcha tarix o'chirildi"); }
   });
 
   // ---- nusxalash / JSON ----
