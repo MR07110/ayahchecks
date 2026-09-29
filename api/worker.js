@@ -10,7 +10,7 @@ const Q = globalThis.QW;
 require('../js/naming.js'); require('../js/validate.js'); require('../js/verify.js');   // brauzer bilan bir xil mantiq
 
 const MODELS = new Set(['qwen/qwen3.8-27b', 'qwen/qwen3.6-27b']);   // RASM modellari (js/config.js bilan bir xil): faqat rasmni matnga aylantiradi
-const TEXT_MODEL = process.env.TEXT_MODEL || 'llama-3.3-70b-versatile';   // MATN modeli: qolgan hamma ishni qiladi (Vercel env: TEXT_MODEL)
+const TEXT_MODEL = process.env.TEXT_MODEL || '';   // MATN modeli: qolgan hamma ishni qiladi (Vercel env: TEXT_MODEL)
 const PAUSE_MS = (Number(process.env.PAUSE_SECONDS) || 20) * 1000;   // har so'rovdan keyingi pauza
 const DAILY_LIMIT = Number(process.env.DAILY_LIMIT) || 1000;   // qayta urinishlar ham hisobga kiradi
 const DEADLINE_MS = 54000;      // maxDuration (60 s) dan kichik: oxirgi ish tugab saqlanishiga zaxira
@@ -121,10 +121,30 @@ async function underLimit(uid) {   // kunlik limit; xato bo'lsa o'tkazib yuborad
   return true;
 }
 
+// Transkriptni (RAQAM | ARABCHA | O'ZBEKCHA qatorlari) aynan JSON'ga aylantiradi: modelga qayta yozdirmaymiz (token sarflamaydi, ko'chirishda xato bo'lmaydi)
+function parseTranscript(text) {
+  const out = { surah: '', surah_number: 0, ayahs: [] };
+  let cur = null, last = 0, key = 0, prevNum = 0;
+  const open = num => { prevNum = Number(num) > 0 ? Number(num) : prevNum + 1; cur = { number: prevNum, words: [], full_uzbek: '' }; out.ayahs.push(cur); last = 0; };
+  String(text || '').split('\n').forEach(raw => {
+    const line = raw.trim(); let m;
+    if ((m = /^SURA\s*:\s*(.*)$/i.exec(line))) { if (!out.surah) out.surah = m[1].trim(); return; }
+    if ((m = /^OYAT\s*:\s*(\d+)?/i.exec(line))) { open(m[1]); return; }
+    if ((m = /^TO['\u02bb\u2019`]?LIQ TARJIMA\s*:\s*(.*)$/i.exec(line))) { if (cur) cur.full_uzbek = m[1].trim(); return; }
+    const p = line.split('|');
+    if (p.length < 3) return;
+    const num = /^\d+$/.test(p[0].trim()) ? Number(p[0].trim()) : 0;
+    if (!cur || (num && last && num <= last)) open();   // so'z raqami yana 1 dan boshlansa — yangi oyat
+    cur.words.push({ index: num || cur.words.length + 1, arabic: p[1].trim(), uzbek: p.slice(2).join('|').trim(), k: String(++key) });
+    if (num) last = num;
+  });
+  return out;
+}
+
 // ---------- bitta ishni bajarish ----------
 async function processJob(job, deadline, warm) {
   const fail = msg => sb.patchJob(job.id, { status: 'error', message: msg });
-  const requeue = (msg, keepAttempt) => sb.patchJob(job.id, { status: 'queued', message: msg, attempts: keepAttempt ? Math.max(0, job.attempts - 1) : job.attempts });
+  const requeue = (msg, keepAttempt, dropTr) => { const p = { status: 'queued', message: msg, attempts: keepAttempt ? Math.max(0, job.attempts - 1) : job.attempts }; return sb.patchJob(job.id, dropTr ? { ...p, transcript: null } : p).catch(() => sb.patchJob(job.id, p)); };   // dropTr: transkript yaroqsiz — keyingi urinishda rasm qayta o'qiladi
   try {
     if (!MODELS.has(job.model)) return fail("Noma'lum model.");
     if (!(await underLimit(job.user_id))) return fail('Kunlik limit tugadi (' + DAILY_LIMIT + ' ta). Ertaga qayta urining.');
@@ -164,31 +184,37 @@ async function processJob(job, deadline, warm) {
     };
 
     // ---- 1-bosqich: RASM MODELI faqat rasmni oddiy matn (transkript) qiladi ----
+    let transcript = String(job.transcript || '').trim(), cutV = false;   // oldingi urinishdan saqlangan transkript bor bo'lsa, rasm modeli qayta chaqirilmaydi (token tejaladi)
     const t0 = Date.now(), avail = deadline - t0;
-    await sb.patchJob(job.id, { message: "1/2: rasm o'qilmoqda" }).catch(() => {});
-    const gv = await callGroq(job.model, image, Math.max(12000, Math.min(28000, Math.round(avail * 0.55) - 2000)), { text: VISION_PROMPT, plain: true, max: 8000 });
-    if (await handled(gv)) return;
-    const transcript = String(gv.content || '').replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/```[a-z]*/gi, '').trim();
-    const cells = transcript.split('\n').filter(l => (l.match(/\|/g) || []).length >= 2).length;
-    if (!cells) return again("Rasmdan matn o'qilmadi");
-    let cutV = false;
-    if (gv.finish === 'length') { if (job.attempts < MAX_ATTEMPTS) return requeue('Rasm matni uzilib qoldi. Qayta uriniladi'); cutV = true; }
-
-    // ---- 2-bosqich: MATN MODELI hamma ishni qiladi (rasmni ko'rmaydi) ----
-    await sb.patchJob(job.id, { message: '2/2: matn modeli ishlayapti (' + cells + " katak)" }).catch(() => {});
-    sb.insertUsage(job.user_id).catch(() => {});
-    const g = await callGroq(TEXT_MODEL, null, Math.max(8000, Math.min(32000, deadline - Date.now() - 3500)), { text: TEXT_PROMPT + transcript });
-    if (await handled(g)) return;
-
-    let parsed, cut = cutV;
-    try { parsed = parseJSON(g.content); } catch (e) { parsed = null; }
-    if (!parsed || g.finish === 'length') {             // javob uzilgan/buzuq: avval qayta urinamiz, oxirgi urinishda tugagan oyatlarni saqlaymiz
-      if (job.attempts < MAX_ATTEMPTS) return requeue(g.finish === 'length' ? 'Javob uzilib qoldi. Qayta uriniladi' : 'JSON buzuq keldi. Qayta uriniladi');
-      parsed = parsed || salvage(g.content);
-      if (!parsed) return fail('Javobni o\'qib bo\'lmadi. Rasmni qayta yuklang.');
-      cut = true;
+    if (!transcript) {
+      await sb.patchJob(job.id, { message: "1/2: rasm o'qilmoqda" }).catch(() => {});
+      const gv = await callGroq(job.model, image, Math.max(12000, Math.min(28000, Math.round(avail * 0.55) - 2000)), { text: VISION_PROMPT, plain: true, max: 8000 });
+      if (await handled(gv)) return;
+      transcript = String(gv.content || '').replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/```[a-z]*/gi, '').trim();
+      if (!transcript.split('\n').some(l => (l.match(/\|/g) || []).length >= 2)) return again("Rasmdan matn o'qilmadi");
+      if (gv.finish === 'length') { if (job.attempts < MAX_ATTEMPTS) return requeue('Rasm matni uzilib qoldi. Qayta uriniladi'); cutV = true; }
+      else sb.patchJob(job.id, { transcript }).catch(() => {});   // keyingi urinishlar uchun saqlab qo'yamiz
     }
-    parsed.transcript = transcript; parsed.models = { vision: job.model, text: TEXT_MODEL };   // nosozlik bo'lsa: rasm modeli aynan nimani ko'rganini ko'rish uchun
+
+    // ---- 2-bosqich: transkriptni server o'zi JSON'ga aylantiradi (aynan ko'chiradi). Matn modeli FAQAT bo'sh tarjimalar uchun chaqiriladi ----
+    const parsed = parseTranscript(transcript), blanks = [];
+    parsed.ayahs.forEach(a => a.words.forEach(w => { if (!w.uzbek && !/\?\?\?/.test(w.arabic)) blanks.push(w); }));
+    let cut = cutV, textUsed = null;
+    if (blanks.length) {
+      await sb.patchJob(job.id, { message: '2/2: ' + blanks.length + " ta bo'sh tarjima yozilmoqda" }).catch(() => {});
+      sb.insertUsage(job.user_id).catch(() => {});
+      const lines = []; parsed.ayahs.forEach(a => a.words.forEach(w => lines.push(w.k + ' | ' + w.arabic + ' | ' + (w.uzbek || '_'))));
+      const askText = m => callGroq(m, null, Math.max(8000, Math.min(32000, deadline - Date.now() - 3500)), { text: TEXT_PROMPT + lines.join('\n'), max: Math.min(4000, 300 + blanks.length * 40) });
+      let tm = TEXT_MODEL || job.model, g = await askText(tm);
+      if (g.kind === 'model' && tm !== job.model) { tm = job.model; g = await askText(tm); }   // TEXT_MODEL hisobda yo'q/o'chirilgan: hisobingizda ishlayotgan rasm modeli (matnni ham biladi) ishlatiladi
+      if (await handled(g)) return;
+      let tr = null; try { tr = parseJSON(g.content).t; } catch (e) { /* quyida */ }
+      if (!tr || typeof tr !== 'object') { if (job.attempts < MAX_ATTEMPTS) return requeue('JSON buzuq keldi. Qayta uriniladi'); }   // oxirgi urinishda tarjimasiz saqlanadi
+      else blanks.forEach(w => { const s = String(tr[w.k] == null ? '' : tr[w.k]).trim(); if (s) { w.uzbek = s; w.ai = true; } });
+      textUsed = tm;
+    }
+    parsed.ayahs.forEach(a => a.words.forEach(w => { delete w.k; }));
+    parsed.transcript = transcript; parsed.models = { vision: job.model, text: textUsed };   // nosozlik bo'lsa: rasm modeli aynan nimani ko'rganini ko'rish uchun
     (parsed.ayahs || []).forEach(a => {                 // full_arabic ni so'zlardan o'zimiz yig'amiz (modelga yozdirmaymiz: tez va aniq)
       if (!a || !Array.isArray(a.words)) return;
       a.words.sort((x, y) => (Number(x.index) || 0) - (Number(y.index) || 0));
@@ -196,19 +222,19 @@ async function processJob(job, deadline, warm) {
       if (!String(a.full_uzbek || '').trim()) a.full_uzbek = a.words.map(w => w.uzbek).join(' ');   // to'liq tarjima = kitobdagi so'zma-so'z tarjima, aynan shu tartibda
     });
     let v = Q.validate(parsed);
-    if (v.issues.some(i => i.lvl === 'err' && !i.ayah)) return again("Rasmdan oyat topilmadi");
+    if (v.issues.some(i => i.lvl === 'err' && !i.ayah)) return job.attempts >= MAX_ATTEMPTS ? fail('Rasmdan oyat topilmadi (' + MAX_ATTEMPTS + ' marta urinildi)') : requeue('Rasmdan oyat topilmadi. Qayta uriniladi', false, true);
 
     await sb.patchJob(job.id, { status: 'verifying' });
     await warm;
     let ver = null;
     try { ver = await Q.verify(parsed); } catch (e) { console.error('verify:', e.message); }   // Mus'haf yuklanmasa ham natija saqlanadi
-    if (ver && ver.checked === 0 && job.attempts < 3) return requeue("Mus'hafdan mos oyat topilmadi. Qayta uriniladi");   // o'qish butunlay xato: saqlab "Tayyor" qilmaymiz
+    if (ver && ver.checked === 0 && job.attempts < 3) return requeue("Mus'hafdan mos oyat topilmadi. Qayta uriniladi", false, true);   // o'qish butunlay xato: saqlab "Tayyor" qilmaymiz
     if (ver && ver.degenerate) return fail("Model rasmni o'qiy olmadi: bitta oyatni qayta-qayta yozdi (xira, qiyshiq yoki uzoq rasm). Rasmni yaqinroq, yorug' joyda, tekis holatda qayta oling.");
     if (ver && ver.checked === 0) return fail("Rasmdagi matn Mus'haf bilan mos kelmadi (model rasmni o'qiy olmadi yoki boshqa narsa o'qidi). Rasmni yaqinroq, yorug' joyda, tekis holatda qayta oling.");   // taxminiy/to'qilgan natijani \"Tayyor\" deb saqlamaymiz
     if (ver) v = Q.validate(parsed);
     // Sahifadagi boshqa oyatlarga mos kelmagan (model o'ylab topgan) oyatlar: ko'p bo'lsa qayta uriniladi, oz bo'lsa belgilanadi
     const sus = (parsed.ayahs || []).filter(a => a.suspect).length;
-    if (ver && sus && sus * 2 >= (parsed.ayahs || []).length && job.attempts < 3) return requeue("Ko'p oyat sahifaga mos kelmadi (" + sus + " ta). Qayta uriniladi");
+    if (ver && sus && sus * 2 >= (parsed.ayahs || []).length && job.attempts < 3) return requeue("Ko'p oyat sahifaga mos kelmadi (" + sus + " ta). Qayta uriniladi", false, true);
     if (sus) { parsed.suspectCount = sus; v.score = Math.min(v.score || 0, 60); }
     if (cut) { parsed.incomplete = true; v.score = Math.min(v.score || 0, 50); }
 
@@ -291,4 +317,4 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: e.message });
   }
 };
-module.exports.processJob = processJob;   // test uchun
+module.exports.processJob = processJob; module.exports.parseTranscript = parseTranscript;   // test uchun

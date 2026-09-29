@@ -46,3 +46,10 @@ Ixtiyoriy: `DAILY_LIMIT` (1000), `PAUSE_SECONDS` (20)
 - Har ishda ikkita Groq so'rovi ketadi; natija JSON'ida `transcript` (rasm modeli nimani ko'rgani) va `models` saqlanadi: xato bo'lsa shundan qaraladi.
 - Rasm bo'yicha 2-o'tish (review) olib tashlandi: rasm modeli endi boshqa ish qilmaydi.
 - Vercel env: `TEXT_MODEL` (ixtiyoriy). Model nomi topilmasa ish "Matn modeli topilmadi" xatosi bilan tugaydi.
+
+## Token tejash (sifatni pasaytirmasdan)
+- **Transkriptni server o'zi JSON'ga aylantiradi** (`parseTranscript`): matn modeli endi butun natijani qayta yozmaydi, faqat **bo'sh tarjimalarni** yozadi (chiqish tokeni ~90% kam). Arabcha va kitob tarjimasi aynan ko'chiriladi — model o'zgartira olmaydi. Bo'sh katak bo'lmasa matn modeli umuman chaqirilmaydi.
+- **Transkript keshi** (`jobs.transcript`): matn bosqichi yoki JSON xato bersa, qayta urinishda rasm modeli qayta chaqirilmaydi. Mus'haf mos kelmasa (transkript yaroqsiz) esa kesh o'chadi va rasm qayta o'qiladi.
+- **Tugmani ketma-ket bosish**: Boshlash/To'xtatish bitta so'rov yuboradi (qo'shimcha bosishlar e'tiborga olinmaydi); worker'ni uyg'otish kamida 4 s oralig'ida.
+- `supabase/schema.sql` ni qayta ishga tushiring (yangi `transcript` ustuni).
+- `TEXT_MODEL` bo'sh bo'lsa (standart) tarjima bosqichi ham tanlangan rasm modeli (Qwen) bilan bajariladi. `TEXT_MODEL` berilgan-u hisobda yo'q bo'lsa, o'zi rasm modeliga o'tadi ("Matn modeli topilmadi" xatosi chiqmaydi).

@@ -75,6 +75,7 @@ alter table public.jobs add column if not exists image_path text;          -- St
 alter table public.jobs add column if not exists model text;
 alter table public.jobs add column if not exists position bigint;          -- tartib (kichigi birinchi)
 alter table public.jobs add column if not exists attempts int not null default 0;
+alter table public.jobs add column if not exists transcript text;   -- rasm modeli matni: qayta urinishda rasm qayta o'qilmaydi (token tejash)
 alter table public.jobs add column if not exists started_at timestamptz;
 
 -- Rasmlar uchun yopiq bucket (papka nomi = user id)

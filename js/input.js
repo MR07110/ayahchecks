@@ -32,11 +32,14 @@
     $('queueInfo').textContent = queue.length + ' ta rasm · navbatda: ' + n('queued') + (working() ? ' · ishlanmoqda: 1' : '') + ' · tayyor: ' + n('done') + (n('error') ? ' · xato: ' + n('error') : '');
   }
   R.on(syncBtn);
+  let btnBusy = false;
   $('runBtn').addEventListener('click', async () => {
+    if (btnBusy) return; btnBusy = true; $('runBtn').disabled = true;   // ketma-ket bosishlar bitta so'rov bo'lsin
     try {
       if (R.running) { await R.stop(); ui.toast("To'xtatildi: joriy ish tugagach to'xtaydi", 3500); }
       else { await J.setModel(sel.value); await pushOrder(); await R.start(); ui.hideWarn(); }
     } catch (e) { ui.error(e.message); }
+    finally { btnBusy = false; syncBtn(); }
   });
 
   // ---- ro'yxat ko'rinishi ----

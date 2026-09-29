@@ -5,8 +5,8 @@
   const S = Q.run = {
     ready: false, running: false, halt: null, haltMsg: '',
     on(fn) { subs.push(fn); if (S.ready) fn(S); },
-    async start() { await save('running'); S.running = true; emit(); kick(); },
-    async stop() { await save('stopped'); S.running = false; emit(); }   // server joriy ishni tugatadi, keyingisini olmaydi
+    async start() { if (S.busy) return; S.busy = true; try { await save('running'); S.running = true; emit(); kick(true); } finally { S.busy = false; } },
+    async stop() { if (S.busy) return; S.busy = true; try { await save('stopped'); S.running = false; emit(); } finally { S.busy = false; } }   // server joriy ishni tugatadi, keyingisini olmaydi
     , kick
   };
   const REASON = { groq_key: 'Groq API kaliti ishlamayapti', groq_quota: 'Groq limiti tugadi', groq_down: 'Groq API javob bermayapti' };
@@ -16,7 +16,9 @@
     const { error } = await c.from('user_state').upsert({ user_id: session.user.id, run_state, updated_at: new Date().toISOString() });
     if (error) throw new Error("Holatni saqlab bo'lmadi: " + error.message);
   }
-  async function kick() {   // serverdagi worker'ni uyg'otadi (u band bo'lsa darrov qaytadi; Groq to'xtagan bo'lsa kalitni tekshiradi)
+  let lastKick = 0;
+  async function kick(force) {
+    if (!force && Date.now() - lastKick < 4000) return; lastKick = Date.now();   // serverdagi worker'ni uyg'otadi (u band bo'lsa darrov qaytadi; Groq to'xtagan bo'lsa kalitni tekshiradi)
     try { const t = await Q.supa.token(); if (t) fetch('/api/worker', { method: 'POST', headers: { Authorization: 'Bearer ' + t } }).catch(() => {}); } catch { /* */ }
   }
   let bar;
