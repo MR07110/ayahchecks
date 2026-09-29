@@ -13,9 +13,13 @@
     else video.style.transform = z > 1 ? 'scale(' + z + ')' : '';   // raqamli zoom (brauzer kamera zoom'ini bermasa)
     if (zlab) zlab.textContent = (Math.round(z * 10) / 10) + '×';
   }
+  let imgCap = null;
   function initZoom() {
     track = stream && stream.getVideoTracks()[0];
     let caps = {}; try { caps = (track && track.getCapabilities && track.getCapabilities()) || {}; } catch (e) { /* */ }
+    // Doimiy avtofokus (xira kadr = model o'qiy olmaydi) va to'liq sifatli suratga olish (video kadr emas)
+    try { if (track && caps.focusMode && caps.focusMode.includes('continuous')) track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {}); } catch (e) { /* */ }
+    try { imgCap = (track && window.ImageCapture) ? new ImageCapture(track) : null; } catch (e) { imgCap = null; }
     hw = !!(caps.zoom && caps.zoom.max > caps.zoom.min);
     if (hw) { zmin = caps.zoom.min; zmax = Math.min(caps.zoom.max, 8); } else { zmin = 1; zmax = 4; }
     video.style.transform = '';
@@ -28,7 +32,7 @@
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error("Bu brauzerda kamera ishlamaydi (HTTPS kerak)");
     starting = (async () => {
       const tries = touch
-        ? [{ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } } }, { video: true }]
+        ? [{ video: { facingMode: { ideal: 'environment' }, width: { ideal: 4032 }, height: { ideal: 3024 } } }, { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } } }, { video: true }]
         : [{ video: { width: { ideal: 1920 }, height: { ideal: 1080 } } }, { video: true }];
       let err;
       for (const c of tries) { try { stream = await navigator.mediaDevices.getUserMedia(c); break; } catch (e) { err = e; if (e.name === 'NotAllowedError') break; } }
@@ -42,14 +46,31 @@
   }
   function close() { if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; track = null; video.srcObject = null; }
 
+  // Android Chrome: takePhoto() to'liq sensor sifatida (avtofokus bilan) oladi; video kadr esa siqilgan va ko'pincha xira.
+  // Raqamli zoom (brauzer zoom bermasa) da takePhoto ishlatilmaydi: u zoom'ni hisobga olmaydi.
+  async function still() {
+    if (!imgCap || (!hw && zoom > 1)) return null;
+    try {
+      const b = await Promise.race([imgCap.takePhoto(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000))]);
+      const bmp = await createImageBitmap(b, { imageOrientation: 'from-image' });
+      const k = Math.min(1, C.MAX_IMG / Math.max(bmp.width, bmp.height));
+      const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      if (bmp.close) bmp.close();
+      return await new Promise(r => c.toBlob(r, 'image/jpeg', 0.92));
+    } catch (e) { return null; }
+  }
   async function shot() {
     await open();
     if (!video.videoWidth) await new Promise(r => video.addEventListener('loadeddata', r, { once: true }));
-    const dz = !hw && zoom > 1 ? zoom : 1, vw = video.videoWidth, vh = video.videoHeight, sw = vw / dz, sh = vh / dz;
-    const k = Math.min(1, C.MAX_IMG / Math.max(sw, sh));
-    const c = document.createElement('canvas'); c.width = Math.round(sw * k); c.height = Math.round(sh * k);
-    c.getContext('2d').drawImage(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, c.width, c.height);
-    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+    let blob = await still();
+    if (!blob) {
+      const dz = !hw && zoom > 1 ? zoom : 1, vw = video.videoWidth, vh = video.videoHeight, sw = vw / dz, sh = vh / dz;
+      const k = Math.min(1, C.MAX_IMG / Math.max(sw, sh));
+      const c = document.createElement('canvas'); c.width = Math.round(sw * k); c.height = Math.round(sh * k);
+      c.getContext('2d').drawImage(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, c.width, c.height);
+      blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.92));
+    }
     const d = new Date(), p = x => String(x).padStart(2, '0');
     const name = 'kamera-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '-' + (++n) + '.jpg';
     Q.addFiles([new File([blob], name, { type: 'image/jpeg' })]);

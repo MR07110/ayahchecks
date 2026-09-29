@@ -139,17 +139,39 @@
   // Modelning arabcha so'zlarini Mus'haf so'zlari bilan almashtiradi (o'zbekcha tarjimaga tegmaydi).
   // Faqat ishonchli mos kelgan so'zlar almashadi; katak soni o'zgarmaydi.
   function fixWords(a, slice, bsm) {
-    const ws = a.words.slice(bsm), m = ws.map(w => Q.norm(w.arabic)), c = slice.map(Q.norm);
+    const head = a.words.slice(0, bsm), ws = a.words.slice(bsm), m = ws.map(w => Q.norm(w.arabic)), c = slice.map(Q.norm);
     a.review = null;
-    // Katak soni Mus'haf so'zlari soniga teng bo'lmasa, so'zma-so'z almashtirish tarjimani buzadi
-    // (so'z tushib qoladi yoki tarjima boshqa so'zga yopishadi): tegmaymiz va tekshirishga belgilaymiz.
-    if (ws.length !== slice.length) { a.review = "Katak soni (" + ws.length + ") Mus'haf so'zlari soniga (" + slice.length + ") teng emas. Rasm yoki oyat chegarasini tekshiring."; return 0; }
-    const sims = m.map((x, i) => Q.sim(x, c[i]));
-    // Har bir so'z ancha o'xshash bo'lishi kerak; aks holda model boshqa so'zni o'qigan (tarjima ham boshqa so'zniki)
-    if (sims.some(x => x < 0.75)) { a.review = "Modelning o'qishi Mus'haf bilan ko'p farq qiladi. Rasmni tekshiring."; return 0; }
-    let n = 0;
-    ws.forEach((w, i) => { if (w.arabic !== slice[i]) { w.modelArabic = w.arabic; w.arabic = slice[i]; n++; } });
-    if (n) a.full_arabic = a.words.map(w => w.arabic).join(' ');
+    // 1) Katak soni teng va har so'z o'xshash: oddiy almashtirish
+    const same = ws.length === slice.length && m.every((x, i) => Q.sim(x, c[i]) >= 0.75);
+    if (same) {
+      let n = 0;
+      ws.forEach((w, i) => { if (w.arabic !== slice[i]) { w.modelArabic = w.arabic; w.arabic = slice[i]; n++; } });
+      if (n) a.full_arabic = a.words.map(w => w.arabic).join(' ');
+      return n;
+    }
+    // 2) Kataklar soni/tartibi farq qiladi: so'zma-so'z moslashtirib, arabcha matnni Mus'haf bilan TO'LIQ tenglashtiramiz.
+    //    Tushib qolgan so'z Mus'hafdan qo'shiladi (tarjimasi "???"), ortiqcha katak olib tashlanadi (tarjimasi eslatmada qoladi).
+    const map = mapWords(m, c), ci = new Array(c.length).fill(-1);
+    map.forEach((j, i) => { if (j >= 0 && Q.sim(m[i], c[j]) >= 0.4) ci[j] = i; });
+    const used = ci.filter(x => x >= 0).length;
+    if (used < Math.max(1, Math.ceil(ws.length * 0.6)) || used < Math.ceil(slice.length * 0.6)) {
+      a.review = "Modelning o'qishi Mus'haf bilan ko'p farq qiladi (" + used + "/" + slice.length + " so'z mos). Rasmni tekshiring.";
+      return 0;
+    }
+    const out = [], added = [], dropped = []; let n = 0;
+    slice.forEach((sw, j) => {
+      if (ci[j] >= 0) { const w = ws[ci[j]]; if (w.arabic !== sw) { w.modelArabic = w.arabic; w.arabic = sw; n++; } out.push(w); }
+      else { out.push({ index: 0, arabic: sw, uzbek: '???', added: true }); added.push(j + 1); n++; }
+    });
+    const keep = new Set(ci.filter(x => x >= 0));
+    ws.forEach((w, i) => { if (!keep.has(i)) dropped.push(w); });
+    out.forEach((w, i) => { w.index = i + 1; });
+    a.words = head.concat(out); a.words.forEach((w, i) => { w.index = i + 1; });
+    a.full_arabic = a.words.map(w => w.arabic).join(' ');
+    const msg = [];
+    if (added.length) msg.push("Modelda tushib qolgan so'z Mus'hafdan qo'shildi (" + added.join(', ') + "-so'z): tarjimasini rasmdan kiriting");
+    if (dropped.length) msg.push("Ortiqcha katak olib tashlandi: " + dropped.map(w => (w.arabic || '') + ' = ' + (w.uzbek || '')).join('; '));
+    if (msg.length) a.review = msg.join('. ') + '.';
     return n;
   }
 
@@ -193,17 +215,83 @@
     return { seg, l, h };
   }
 
+  // ---- Gallyutsinatsiyadan himoya ----
+  // Xira/qiyshiq rasmda model rasmdan emas, yoddan yozadi (ayniqsa "فبأي آلاء ربكما تكذبان" ni takrorlaydi).
+  // Bunday matn Qur'onda BOR (Rahmon), shuning uchun oddiy tekshiruv uni "topib" Baqara sahifasiga qo'shib yuborardi.
+  // Yechim: oyat sahifadagi boshqa oyatlar bilan bir xil sura va ketma-ketlikka tushishi shart.
+  const tnorm = a => (a.words || []).map(w => Q.norm(w.arabic)).join('');
+  function degenerate(ays) {   // ketma-ket 3 ta va undan ko'p bir xil oyat: model "aylanib" qolgan (Rahmon'da ham refren hech qachon ketma-ket kelmaydi)
+    let run = 1, best = 1, prev = null;
+    ays.forEach(a => { const t = tnorm(a); run = t && t === prev ? run + 1 : 1; prev = t; if (run > best) best = run; });
+    return best >= 3;
+  }
+  function repick(a, list, s, lo, hi) {   // rad etilgan oyat uchun: faqat asosiy sura ichida, qo'shni oyatlar orasidan qidiradi
+    let m = (a.words || []).map(w => Q.norm(w.arabic)).filter(Boolean), bsm = 0;
+    if (m.length > 4 && m.slice(0, 4).join('') === BSM) { m = m.slice(4); bsm = 4; }
+    if (!m.length) return null;
+    let best = null;
+    list.forEach(x => {
+      if (x.s !== s || x.n <= lo || x.n >= hi) return;
+      const r = align(m, x.nw), sim = 1 - r.cost / m.length;
+      if (sim >= 0.6 && (!best || sim > best.sim)) best = { x, r, sim, exact: 1, bsm };
+    });
+    return best;
+  }
+  function guard(ays, picks, db, hs) {
+    const sc = new Map(), last = new Map();
+    picks.forEach((h, k) => {
+      if (!h || h.sim < 0.8) return;
+      const s = h.x.s, w = (ays[k].words || []).length || 1, l = last.get(s);
+      sc.set(s, (sc.get(s) || 0) + w * (l && h.x.n > l && h.x.n - l <= 6 ? 1.5 : 1)); last.set(s, h.x.n);
+    });
+    if (!sc.size) return picks;
+    const dom = [...sc.entries()].sort((x, y) => y[1] - x[1] || (y[0] === hs) - (x[0] === hs))[0][0];
+    const N = picks.length, ok = new Array(N).fill(false);
+    const idx = []; picks.forEach((h, k) => { if (h && h.x.s === dom) idx.push(k); });
+    const kf = idx[0], kl = idx[idx.length - 1];
+    for (let k = kf; k <= kl; k++) if (picks[k] && picks[k].x.s === dom) ok[k] = true;
+    // sahifa oxirida sura almashsa (masalan Baqara -> Ali-Imron, yoki 112-113-114) faqat ketma-ket suraga ruxsat
+    let cur = dom;
+    for (let k = kl + 1; k < N; k++) { const h = picks[k]; if (!h) continue; if (h.x.s === cur || (h.x.s === cur + 1 && h.x.n <= 8)) { ok[k] = true; cur = h.x.s; } }
+    cur = dom;
+    for (let k = kf - 1; k >= 0; k--) { const h = picks[k]; if (!h) continue; if (h.x.s === cur || (h.x.s === cur - 1 && db.lastN[h.x.s] - h.x.n <= 8)) { ok[k] = true; cur = h.x.s; } }
+    const out = picks.slice();
+    picks.forEach((h, k) => {
+      if (!h || ok[k]) return;
+      let lo = 0, hi = Infinity;
+      for (let i = k - 1; i >= 0; i--) if (ok[i] && out[i] && out[i].x.s === dom) { lo = out[i].x.n; break; }
+      for (let i = k + 1; i < N; i++) if (ok[i] && picks[i] && picks[i].x.s === dom) { hi = picks[i].x.n; break; }
+      const alt = repick(ays[k], db.list, dom, lo, hi);
+      if (alt) { out[k] = alt; ok[k] = true; }
+      else { out[k] = null; ays[k]._rej = { s: h.x.s, n: h.x.n }; }
+    });
+    return out;
+  }
+
   Q.verify = async function (data) {
     const db = await load();
     if (!db) return null;
     const hs = Number(data.surah_number);
+    if (degenerate(data.ayahs)) return { checked: 0, total: data.ayahs.length, degenerate: true, marks: db.marks };   // model bitta oyatni takrorlab yozgan: rasmni o'qimagan
     let picks = pickAll(data.ayahs, db, hs);
     try { if (reflow(data, db, picks)) picks = pickAll(data.ayahs, db, hs); } catch (e) { /* ajratish o'zgarmaydi */ }
+    try { picks = guard(data.ayahs, picks, db, hs); } catch (e) { console.error('guard:', e.message); }
     const votes = new Map(); let checked = 0;
     data.ayahs.forEach((a, k) => {
       const hit = picks[k];
-      if (!hit) { a.src = null; a.verified = null; return; }
-      const slice = hit.x.words.slice(hit.r.start, hit.r.end), st = slice.join(' ');
+      if (!hit) {
+        a.src = null; a.verified = null;
+        if (a._rej) { a.suspect = true; a.review = "Bu oyat sahifadagi boshqa oyatlarga mos kelmadi (" + a._rej.s + ":" + a._rej.n + " ga o'xshaydi). Model rasmdan emas, o'zi o'ylab yozgan bo'lishi mumkin. Rasmni tekshiring."; delete a._rej; }
+        return;
+      }
+      a.suspect = false;
+      // Oyat sahifada boshqa oyatlar orasida bo'lsa u TO'LIQ bo'lishi shart (faqat sahifa chetidagi oyat bo'lakli bo'lishi mumkin):
+      // model chetdagi katakni tushirib qoldirgan bo'lsa ham, Mus'hafdan to'liq oyat olinadi.
+      const nx = picks[k + 1], pv = picks[k - 1];
+      const follows = nx && ((nx.x.s === hit.x.s && nx.x.n === hit.x.n + 1) || (nx.x.s === hit.x.s + 1 && nx.x.n === 1 && hit.x.n === db.lastN[hit.x.s]));
+      const precedes = pv && ((pv.x.s === hit.x.s && pv.x.n === hit.x.n - 1) || (pv.x.s === hit.x.s - 1 && hit.x.n === 1 && pv.x.n === db.lastN[pv.x.s]));
+      const from = precedes ? 0 : hit.r.start, to = follows ? hit.x.words.length : hit.r.end;
+      const slice = hit.x.words.slice(from, to), st = slice.join(' ');
       const mt = a.words.slice(hit.bsm).map(w => w.arabic).join(' '), d = diff(mt, st, db.marks);
       a.verified = Q.sim(skel(mt), skel(st));
       a.fixed = fixWords(a, slice, hit.bsm);   // arabcha matnni Mus'haf bilan 100% tenglashtiradi
@@ -221,5 +309,5 @@
     return { checked, total: data.ayahs.length, marks: db.marks };
   };
   Q.verifyLoad = load;   // server oldindan isitib qo'yishi uchun
-  Q._v = { diff, align, reflow, pickAll };   // test uchun
+  Q._v = { diff, align, reflow, pickAll, guard, degenerate };   // test uchun
 })(typeof window !== "undefined" ? window.QW : globalThis.QW);

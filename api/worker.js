@@ -187,8 +187,13 @@ async function processJob(job, deadline, warm) {
     let ver = null;
     try { ver = await Q.verify(parsed); } catch (e) { console.error('verify:', e.message); }   // Mus'haf yuklanmasa ham natija saqlanadi
     if (ver && ver.checked === 0 && job.attempts < 3) return requeue("Mus'hafdan mos oyat topilmadi. Qayta uriniladi");   // o'qish butunlay xato: saqlab "Tayyor" qilmaymiz
+    if (ver && ver.degenerate) return fail("Model rasmni o'qiy olmadi: bitta oyatni qayta-qayta yozdi (xira, qiyshiq yoki uzoq rasm). Rasmni yaqinroq, yorug' joyda, tekis holatda qayta oling.");
     if (ver && ver.checked === 0) return fail("Rasmdagi matn Mus'haf bilan mos kelmadi (model rasmni o'qiy olmadi yoki boshqa narsa o'qidi). Rasmni yaqinroq, yorug' joyda, tekis holatda qayta oling.");   // taxminiy/to'qilgan natijani \"Tayyor\" deb saqlamaymiz
     if (ver) v = Q.validate(parsed);
+    // Sahifadagi boshqa oyatlarga mos kelmagan (model o'ylab topgan) oyatlar: ko'p bo'lsa qayta uriniladi, oz bo'lsa belgilanadi
+    const sus = (parsed.ayahs || []).filter(a => a.suspect).length;
+    if (ver && sus && sus * 2 >= (parsed.ayahs || []).length && job.attempts < 3) return requeue("Ko'p oyat sahifaga mos kelmadi (" + sus + " ta). Qayta uriniladi");
+    if (sus) { parsed.suspectCount = sus; v.score = Math.min(v.score || 0, 60); }
     if (cut) { parsed.incomplete = true; v.score = Math.min(v.score || 0, 50); }
 
     await sb.patchJob(job.id, { status: 'saving' });
@@ -196,7 +201,7 @@ async function processJob(job, deadline, warm) {
       id: job.id, user_id: job.user_id, surah: parsed.surah || '', surah_number: parsed.surah_number || null,
       ayah_count: (parsed.ayahs || []).length, score: v.score == null ? null : Math.round(v.score), file_name: Q.name.file(parsed), data: parsed
     });
-    await sb.patchJob(job.id, { status: 'done', check_id: checkId, image_path: null, message: (parsed.surah || '') + ' · ' + v.ayahs + ' oyat · ' + v.score + '%' + (cut ? ' · TO\'LIQ EMAS (javob uzilgan)' : '') });
+    await sb.patchJob(job.id, { status: 'done', check_id: checkId, image_path: null, message: (parsed.surah || '') + ' · ' + v.ayahs + ' oyat · ' + v.score + '%' + (sus ? ' · ' + sus + ' ta gumonli oyat' : '') + (cut ? ' · TO\'LIQ EMAS (javob uzilgan)' : '') });
     await sb.removeImage(job.image_path);
   } catch (e) {
     console.error('job', job.id, e.message);
