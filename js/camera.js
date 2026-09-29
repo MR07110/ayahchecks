@@ -95,7 +95,7 @@
     const sh = ui.el('button', 'cam-shutter', null, bar); sh.type = 'button'; sh.setAttribute('aria-label', 'Rasmga olish'); ui.el('span', '', null, sh);
     const out = ui.el('a', 'cam-side', 'Output', bar); out.href = '/output';
     const mdl = ui.el('div', 'cam-model', null, box), ms = $('modelSelect').parentNode;
-    ui.el('span', '', 'Model', mdl); mdl.appendChild($('modelSelect')); ms.hidden = true;
+    ui.el('span', '', 'Rasm modeli', mdl); mdl.appendChild($('modelSelect')); ms.hidden = true;
     inp.addEventListener('click', () => $('imageInput').click());
     const start = () => open().then(() => { msg.hidden = true; }).catch(e => { msg.hidden = false; msg.textContent = ''; ui.el('div', '', e.message, msg); const b = ui.el('button', 'zip-btn', 'Qayta urinish', msg); b.type = 'button'; b.addEventListener('click', start); });
     sh.addEventListener('click', async () => {

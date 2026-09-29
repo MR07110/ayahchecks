@@ -38,3 +38,11 @@ Ixtiyoriy: `DAILY_LIMIT` (1000), `PAUSE_SECONDS` (20)
 - **Diff (Mus'haf bilan solishtirish)**: model Naskh uslubida (`ا`, `ْ`), Mus'haf Uthmoniy uslubda (`ٰ`, `ۡ`, `ٱ`) yozadi. Bu farqlar endi xato hisoblanmaydi (belgisiz alif, sukun, kichik alif, maddah, hamza belgisi, ochiq tanvin). Haqiqiy harf va harakat (fatha/kasra/damma/shadda/tanvin) xatolari esa ushlanadi.
 - "Takroriy tarjima" ogohlantirishi faqat ketma-ket bir xil tarjimada chiqadi ("ularga" kabi to'g'ri takrorlar hisobga olinmaydi).
 - **Qurilmalar orasida jonli sinxron** (`js/live.js`): Jarayon, Kirish va Natijalar sahifalari endi Realtime + o'zi qayta ulanish + har 5–8 s da tekshirish + fon/uyqudan qaytganda darrov yangilash bilan ishlaydi. Boshqa qurilmada tartib o'zgarsa, yangi rasm qo'shilsa, o'chirilsa yoki natija tayyor bo'lsa — refreshsiz ko'rinadi. `checks` jadvali ham Realtime'ga qo'shildi (`schema.sql` ni qayta ishga tushiring).
+
+## Ikki model: rasm modeli + matn modeli
+- **Rasm modeli** (sahifadagi "Rasm modeli" tanlovi): faqat rasmni oddiy matnga (transkript) aylantiradi: `RAQAM | ARABCHA | O'ZBEKCHA`. Tarjima qilmaydi, tuzatmaydi, JSON yozmaydi (`api/_prompt.js`).
+- **Matn modeli** (`TEXT_MODEL` env, standart `llama-3.3-70b-versatile`): transkriptdan JSON yasaydi, oyatlarga bo'ladi, bo'sh kataklarga tarjima yozadi (`api/_prompt_text.js`). Rasmni ko'rmaydi.
+- Keyin server Mus'haf bilan tekshiradi va arabcha matnni Mus'hafga tenglashtiradi (`js/verify.js`).
+- Har ishda ikkita Groq so'rovi ketadi; natija JSON'ida `transcript` (rasm modeli nimani ko'rgani) va `models` saqlanadi: xato bo'lsa shundan qaraladi.
+- Rasm bo'yicha 2-o'tish (review) olib tashlandi: rasm modeli endi boshqa ish qilmaydi.
+- Vercel env: `TEXT_MODEL` (ixtiyoriy). Model nomi topilmasa ish "Matn modeli topilmadi" xatosi bilan tugaydi.

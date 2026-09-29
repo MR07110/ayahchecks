@@ -2,14 +2,15 @@
 // Kim chaqiradi: (1) brauzer "Boshlash" bosganda va har ~15 s da, (2) pg_cron (supabase/cron.sql), (3) o'zi (zanjir), (4) Vercel cron (kuniga 1 marta).
 // Bir vaqtda faqat bitta worker ishlaydi (app_state.lease_until). Har so'rovdan keyin 20 s pauza (PAUSE_SECONDS).
 const crypto = require('crypto');
-const PROMPT = require('./_prompt');
+const VISION_PROMPT = require('./_prompt');        // 1-bosqich: rasm modeli (faqat OCR matn)
+const TEXT_PROMPT = require('./_prompt_text');     // 2-bosqich: matn modeli (barcha ishni shu qiladi)
 const sb = require('./_sb');
-const REVIEW = require('./_review');
 globalThis.QW = globalThis.QW || { CFG: {} };
 const Q = globalThis.QW;
 require('../js/naming.js'); require('../js/validate.js'); require('../js/verify.js');   // brauzer bilan bir xil mantiq
 
-const MODELS = new Set(['qwen/qwen3.8-27b', 'qwen/qwen3.6-27b']);   // js/config.js bilan bir xil
+const MODELS = new Set(['qwen/qwen3.8-27b', 'qwen/qwen3.6-27b']);   // RASM modellari (js/config.js bilan bir xil): faqat rasmni matnga aylantiradi
+const TEXT_MODEL = process.env.TEXT_MODEL || 'llama-3.3-70b-versatile';   // MATN modeli: qolgan hamma ishni qiladi (Vercel env: TEXT_MODEL)
 const PAUSE_MS = (Number(process.env.PAUSE_SECONDS) || 20) * 1000;   // har so'rovdan keyingi pauza
 const DAILY_LIMIT = Number(process.env.DAILY_LIMIT) || 1000;   // qayta urinishlar ham hisobga kiradi
 const DEADLINE_MS = 54000;      // maxDuration (60 s) dan kichik: oxirgi ish tugab saqlanishiga zaxira
@@ -45,9 +46,10 @@ async function callGroq(model, image, timeoutMs, opt) {
   opt = opt || {};
   const t0 = Date.now();
   const body = {
-    model, temperature: 0.05, max_tokens: opt.max || 16000, response_format: { type: 'json_object' }, reasoning_effort: 'none',   // "o'ylash" tokenlari javobni uzib qo'ymasin
-    messages: [{ role: 'user', content: [{ type: 'text', text: opt.text || PROMPT }, { type: 'image_url', image_url: { url: image } }] }]
+    model, temperature: 0.05, max_tokens: opt.max || 16000, reasoning_effort: 'none',   // "o'ylash" tokenlari javobni uzib qo'ymasin
+    messages: [{ role: 'user', content: image ? [{ type: 'text', text: opt.text }, { type: 'image_url', image_url: { url: image } }] : opt.text }]
   };
+  if (!opt.plain) body.response_format = { type: 'json_object' };   // rasm modeli oddiy matn yozadi, matn modeli JSON
   const once = async () => {
     const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), Math.max(5000, timeoutMs - (Date.now() - t0)));
     try {
@@ -76,6 +78,7 @@ async function callGroq(model, image, timeoutMs, opt) {
     const msg = (data.error && data.error.message) || 'Groq HTTP ' + r.status, ra = Number(r.headers.get('retry-after')) || 0;
     if (r.status === 401 || r.status === 403) return { kind: 'auth', msg };
     if (r.status === 429) return /per day|\bTPD\b|\bRPD\b/i.test(msg) ? { kind: 'quota', msg, retryMs: (ra || 3600) * 1000 } : { kind: 'rate', msg, retryMs: Math.min(Math.max(ra, 1) * 1000, 120000) };
+    if (r.status === 404) return { kind: 'model', msg: (image ? 'Rasm' : 'Matn') + ' modeli topilmadi: ' + model + ' (' + msg + ')' };
     if (r.status === 413) return { kind: 'big', msg };
     if (r.status >= 500 || r.status === 408) return { kind: 'down', msg };
     return { kind: 'bad', msg };
@@ -128,36 +131,56 @@ async function processJob(job, deadline, warm) {
     const image = await sb.downloadImage(job.image_path);
     if (!image) return fail('Rasm serverda topilmadi. Qayta yuklang.');
 
-    const g = await callGroq(job.model, image, Math.max(10000, Math.min(50000, deadline - Date.now() - 3500)));
-    const st = await sb.getState();
-    const next = { next_request_at: sb.iso(Date.now() + (g.kind === 'rate' ? Math.max(PAUSE_MS, g.retryMs) : PAUSE_MS)) };
     const again = msg => job.attempts >= MAX_ATTEMPTS ? fail(msg + ' (' + MAX_ATTEMPTS + ' marta urinildi)') : requeue(msg + '. Qayta uriniladi');
+    // Ikkala bosqich (rasm modeli va matn modeli) uchun bir xil xato boshqaruvi. true = ish shu yerda tugadi (qayta navbat/xato).
+    const handled = async g => {
+      const st = await sb.getState();
+      const next = { next_request_at: sb.iso(Date.now() + (g.kind === 'rate' ? Math.max(PAUSE_MS, g.retryMs) : PAUSE_MS)) };
+      if (g.kind === 'auth') {
+        await sb.patchState(next);
+        await halt('groq_key', "Groq API kaliti noto'g'ri yoki ruxsati yo'q. Vercel env'dagi GROQ_API_KEY ni yangilang. (" + g.msg + ')');
+        await requeue('Groq kaliti kutilmoqda', true); return true;
+      }
+      if (g.kind === 'quota') {
+        await sb.patchState(next);
+        await halt('groq_quota', 'Groq limiti tugadi. Yangi GROQ_API_KEY qo\'ying yoki limit tiklanishini kuting. (' + g.msg + ')', g.retryMs);
+        await requeue('Groq limiti tugadi', true); return true;
+      }
+      if (g.kind === 'rate') { await sb.patchState(next); await requeue("Groq limiti: ~" + Math.round(g.retryMs / 1000) + " s kutilmoqda", true); return true; }
+      if (g.kind === 'down') {
+        const fc = (st.fail_count || 0) + 1;
+        await sb.patchState({ ...next, fail_count: fc });
+        // Faqat haqiqiy uzilishlar (5xx / tarmoq) ilovani to'xtatadi va 1 daqiqadan keyin o'zi qayta urinadi.
+        if (fc >= 5) { await halt('groq_down', 'Groq API 5 marta ketma-ket javob bermadi: ' + g.msg, 60000); await requeue('Groq ishlamayapti', true); return true; }
+        await again('Groq xatosi: ' + g.msg); return true;
+      }
+      // Vaqt tugashi va bo'sh javob — bitta rasmning muammosi: ilovani to'xtatmaydi, faqat shu rasm qayta uriniladi
+      if (g.kind === 'timeout' || g.kind === 'empty') { await sb.patchState(next); await again(g.msg); return true; }
+      await sb.patchState({ ...next, fail_count: 0 });
+      if (g.kind === 'model') { await fail(g.msg); return true; }
+      if (g.kind === 'big') { await fail('Rasm juda katta. Kichikroq rasm yuklang.'); return true; }
+      if (g.kind === 'bad') { await (job.attempts >= 3 ? fail(g.msg) : requeue(g.msg + '. Qayta uriniladi')); return true; }
+      return false;
+    };
 
-    if (g.kind === 'auth') {
-      await sb.patchState(next);
-      await halt('groq_key', "Groq API kaliti noto'g'ri yoki ruxsati yo'q. Vercel env'dagi GROQ_API_KEY ni yangilang. (" + g.msg + ')');
-      return requeue('Groq kaliti kutilmoqda', true);
-    }
-    if (g.kind === 'quota') {
-      await sb.patchState(next);
-      await halt('groq_quota', 'Groq limiti tugadi. Yangi GROQ_API_KEY qo\'ying yoki limit tiklanishini kuting. (' + g.msg + ')', g.retryMs);
-      return requeue('Groq limiti tugadi', true);
-    }
-    if (g.kind === 'rate') { await sb.patchState(next); return requeue("Groq limiti: ~" + Math.round(g.retryMs / 1000) + " s kutilmoqda", true); }
-    if (g.kind === 'down') {
-      const fc = (st.fail_count || 0) + 1;
-      await sb.patchState({ ...next, fail_count: fc });
-      // Faqat haqiqiy uzilishlar (5xx / tarmoq) ilovani to'xtatadi va 1 daqiqadan keyin o'zi qayta urinadi.
-      if (fc >= 5) { await halt('groq_down', 'Groq API 5 marta ketma-ket javob bermadi: ' + g.msg, 60000); return requeue('Groq ishlamayapti', true); }
-      return again('Groq xatosi: ' + g.msg);
-    }
-    // Vaqt tugashi va bo'sh javob — bitta rasmning muammosi: ilovani to'xtatmaydi, faqat shu rasm qayta uriniladi
-    if (g.kind === 'timeout' || g.kind === 'empty') { await sb.patchState(next); return again(g.msg); }
-    await sb.patchState({ ...next, fail_count: 0 });
-    if (g.kind === 'big') return fail('Rasm juda katta. Kichikroq rasm yuklang.');
-    if (g.kind === 'bad') return job.attempts >= 3 ? fail(g.msg) : requeue(g.msg + '. Qayta uriniladi');
+    // ---- 1-bosqich: RASM MODELI faqat rasmni oddiy matn (transkript) qiladi ----
+    const t0 = Date.now(), avail = deadline - t0;
+    await sb.patchJob(job.id, { message: "1/2: rasm o'qilmoqda" }).catch(() => {});
+    const gv = await callGroq(job.model, image, Math.max(12000, Math.min(28000, Math.round(avail * 0.55) - 2000)), { text: VISION_PROMPT, plain: true, max: 8000 });
+    if (await handled(gv)) return;
+    const transcript = String(gv.content || '').replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/```[a-z]*/gi, '').trim();
+    const cells = transcript.split('\n').filter(l => (l.match(/\|/g) || []).length >= 2).length;
+    if (!cells) return again("Rasmdan matn o'qilmadi");
+    let cutV = false;
+    if (gv.finish === 'length') { if (job.attempts < MAX_ATTEMPTS) return requeue('Rasm matni uzilib qoldi. Qayta uriniladi'); cutV = true; }
 
-    let parsed, cut = false;
+    // ---- 2-bosqich: MATN MODELI hamma ishni qiladi (rasmni ko'rmaydi) ----
+    await sb.patchJob(job.id, { message: '2/2: matn modeli ishlayapti (' + cells + " katak)" }).catch(() => {});
+    sb.insertUsage(job.user_id).catch(() => {});
+    const g = await callGroq(TEXT_MODEL, null, Math.max(8000, Math.min(32000, deadline - Date.now() - 3500)), { text: TEXT_PROMPT + transcript });
+    if (await handled(g)) return;
+
+    let parsed, cut = cutV;
     try { parsed = parseJSON(g.content); } catch (e) { parsed = null; }
     if (!parsed || g.finish === 'length') {             // javob uzilgan/buzuq: avval qayta urinamiz, oxirgi urinishda tugagan oyatlarni saqlaymiz
       if (job.attempts < MAX_ATTEMPTS) return requeue(g.finish === 'length' ? 'Javob uzilib qoldi. Qayta uriniladi' : 'JSON buzuq keldi. Qayta uriniladi');
@@ -165,14 +188,7 @@ async function processJob(job, deadline, warm) {
       if (!parsed) return fail('Javobni o\'qib bo\'lmadi. Rasmni qayta yuklang.');
       cut = true;
     }
-    // 2-o'tish: model ko'chirilgan natijani rasm bilan qayta solishtirib, ko'chirish xatolarini tuzatadi (vaqt yetsa; xato bo'lsa birinchi natija saqlanadi)
-    if (!cut && process.env.REVIEW_PASS !== '0' && deadline - Date.now() > 14000) {
-      try {
-        const slim = { ayahs: (parsed.ayahs || []).map(a => ({ number: a.number, words: (a.words || []).map(w => (w.ai ? { index: w.index, arabic: w.arabic, uzbek: w.uzbek, ai: true } : { index: w.index, arabic: w.arabic, uzbek: w.uzbek })) })) };
-        const r2 = await callGroq(job.model, image, Math.max(8000, Math.min(26000, deadline - Date.now() - 3500)), { text: REVIEW.PROMPT + JSON.stringify(slim), max: 3000 });
-        if (r2.kind === 'ok' && r2.finish !== 'length') { const j2 = parseJSON(r2.content); parsed.reviewed = REVIEW.apply(parsed, j2.fixes, Q); }
-      } catch (e) { console.error('review:', e.message); }
-    }
+    parsed.transcript = transcript; parsed.models = { vision: job.model, text: TEXT_MODEL };   // nosozlik bo'lsa: rasm modeli aynan nimani ko'rganini ko'rish uchun
     (parsed.ayahs || []).forEach(a => {                 // full_arabic ni so'zlardan o'zimiz yig'amiz (modelga yozdirmaymiz: tez va aniq)
       if (!a || !Array.isArray(a.words)) return;
       a.words.sort((x, y) => (Number(x.index) || 0) - (Number(y.index) || 0));
@@ -275,3 +291,4 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: e.message });
   }
 };
+module.exports.processJob = processJob;   // test uchun
