@@ -58,6 +58,7 @@
         });
         const full = el('div', 'ayah-full-block', null, box);
         el('div', 'ayah-full-label', "To'liq oyat", full); el('div', 'ayah-full-arabic', a.full_arabic, full); el('div', 'ayah-full-text', a.full_uzbek, full);
+        if (a.review) el('div', 'review-note', 'Tekshirish kerak: ' + a.review, box);
         if (a.src && (a.fixed || a.lDiff || a.mkDiff)) ui.diff(box, a);   // to'g'ri oyatda "keyin" bloki chiqmaydi
       });
       $('rawJson').textContent = JSON.stringify(data, (k, val) => k === '_bad' ? undefined : val, 2);

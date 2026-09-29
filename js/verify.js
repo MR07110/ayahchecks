@@ -140,15 +140,15 @@
   // Faqat ishonchli mos kelgan so'zlar almashadi; katak soni o'zgarmaydi.
   function fixWords(a, slice, bsm) {
     const ws = a.words.slice(bsm), m = ws.map(w => Q.norm(w.arabic)), c = slice.map(Q.norm);
-    let map;
-    if (ws.length === slice.length) map = ws.map((_, i) => i);
-    else map = mapWords(m, c);
+    a.review = null;
+    // Katak soni Mus'haf so'zlari soniga teng bo'lmasa, so'zma-so'z almashtirish tarjimani buzadi
+    // (so'z tushib qoladi yoki tarjima boshqa so'zga yopishadi): tegmaymiz va tekshirishga belgilaymiz.
+    if (ws.length !== slice.length) { a.review = "Katak soni (" + ws.length + ") Mus'haf so'zlari soniga (" + slice.length + ") teng emas. Rasm yoki oyat chegarasini tekshiring."; return 0; }
+    const sims = m.map((x, i) => Q.sim(x, c[i]));
+    // Har bir so'z ancha o'xshash bo'lishi kerak; aks holda model boshqa so'zni o'qigan (tarjima ham boshqa so'zniki)
+    if (sims.some(x => x < 0.75)) { a.review = "Modelning o'qishi Mus'haf bilan ko'p farq qiladi. Rasmni tekshiring."; return 0; }
     let n = 0;
-    ws.forEach((w, i) => {
-      const j = map[i]; if (j == null || j < 0) return;
-      if (Q.sim(m[i], c[j]) < 0.6) return;                 // juda farq qilsa tegmaymiz
-      if (w.arabic !== slice[j]) { w.modelArabic = w.arabic; w.arabic = slice[j]; n++; }
-    });
+    ws.forEach((w, i) => { if (w.arabic !== slice[i]) { w.modelArabic = w.arabic; w.arabic = slice[i]; n++; } });
     if (n) a.full_arabic = a.words.map(w => w.arabic).join(' ');
     return n;
   }
