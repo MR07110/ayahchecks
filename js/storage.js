@@ -28,8 +28,12 @@
       return data;
     },
     async get(id) {
-      const { data, error } = await db().select('data').eq('id', id).single();
+      const { data, error } = await db().select('data').eq('id', id).maybeSingle();
       if (error) throw new Error("Yozuvni ochib bo'lmadi: " + error.message);
+      if (!data) {   // yozuv o'chirilgan yoki boshqa akkauntniki: ro'yxatni yangilaymiz
+        this.items = this.items.filter(x => x.id !== id);
+        throw new Error("Bu yozuv topilmadi (o'chirilgan yoki boshqa akkauntda). Ro'yxat yangilandi.");
+      }
       return data.data;
     },
     async add(d, score) {
