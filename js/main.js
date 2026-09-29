@@ -1,5 +1,6 @@
 (function (Q) {
   const C = Q.CFG, ui = Q.ui, $ = ui.$;
+  const log = Q.log.scope('app');
   let file = null, last = null, busy = false;
 
   // ---- boshlang'ich holat ----
@@ -8,7 +9,7 @@
   Object.keys(PV).forEach(id => {
     const b = document.createElement('button');
     b.type = 'button'; b.dataset.id = id; b.textContent = PV[id].name; b.setAttribute('role', 'radio');
-    b.addEventListener('click', () => { if (busy || id === prov) return; prov = id; Q.store.set(C.K_PROVIDER, prov); applyProvider(); });
+    b.addEventListener('click', () => { if (busy || id === prov) return; prov = id; Q.store.set(C.K_PROVIDER, prov); applyProvider(); log.info('Provayder almashtirildi → ' + PV[prov].name, { model: sel.value, kalit: readKey(prov) ? 'bor' : 'yo\'q' }); });
     tg.appendChild(b);
   });
 
@@ -31,8 +32,10 @@
     sel.value = modelFor(prov);
   }
   $('apiKeyInput').addEventListener('input', e => Q.store.set(PV[prov].kKey, e.target.value.trim()));
-  sel.addEventListener('change', () => Q.store.set(PV[prov].kModel, sel.value));
+  sel.addEventListener('change', () => { Q.store.set(PV[prov].kModel, sel.value); log.info('Model: ' + sel.value); });
   applyProvider();
+  Q.logPanel($('logPanel'));
+  log.info('Provayder: ' + PV[prov].name, { model: sel.value, kalit: readKey(prov) ? 'bor' : 'yo\'q', fallback: C.FALLBACK, tarix: Q.hist.list().length });
 
   const refreshHistory = () => ui.history(openItem, delItem);
   refreshHistory();
@@ -51,6 +54,7 @@
     if (!f.type || !f.type.startsWith('image/')) return ui.error('Faqat rasm fayllari qabul qilinadi.');
     if (f.size > C.MAX_FILE) return ui.error('Fayl hajmi 10 MB dan oshmasligi kerak.');
     ui.hideError(); ui.hideResult(); ui.hideWarn();
+    log.info('Fayl qabul qilindi', { name: f.name || 'clipboard', type: f.type, kb: Math.round(f.size / 1024) });
     file = await Q.api.prepare(f);
     const p = $('preview'); if (p.dataset.url) URL.revokeObjectURL(p.dataset.url);
     p.dataset.url = URL.createObjectURL(file); p.src = p.dataset.url; p.style.display = 'block';
@@ -73,6 +77,7 @@
     const k = $('apiKeyInput').value.trim();
     if (!k) return ui.error(PV[prov].name + " API kalitini kiriting.");
     if (!file) return ui.error('Rasm tanlang.');
+    const tRun = performance.now(); Q.log.mark(); log.info('━━ Tahlil boshlandi ━━', { provider: PV[prov].name, model: sel.value, rasm_kb: Math.round(file.size / 1024) });
     busy = true; const btn = $('runBtn'); btn.disabled = true; btn.textContent = 'Ajratilmoqda...';
     ui.hideError(); ui.hideResult(); ui.hideWarn();
     try {
@@ -82,11 +87,15 @@
       catch (e) {
         const other = Object.keys(PV).find(id => id !== prov && readKey(id));
         if (!(C.FALLBACK && e.retryable && other)) throw e;
+        log.warn('Zaxira provayderga o\'tilmoqda: ' + PV[prov].name + ' → ' + PV[other].name, { sabab: e.message });
         used = other; btn.textContent = PV[other].name + " ga o'tilmoqda...";
         res = await Q.api.analyze({ file, key: readKey(other), model: modelFor(other), provider: other, onStatus });
       }
       const { parsed, usage, ms } = res, usedModel = used === prov ? sel.value : modelFor(used);
       let v = Q.validate(parsed);
+      const vl = Q.log.scope('validate');
+      vl[v.score >= 90 ? 'ok' : 'warn']('Ichki tekshiruv: ' + v.score + '%', { oyat: v.ayahs, soz: v.words, muammo: v.issues.length });
+      v.issues.forEach(i => vl[i.lvl === 'err' ? 'err' : 'warn']('Oyat #' + i.ayah + ': ' + i.msg));
       if (v.issues.some(i => i.lvl === 'err' && !i.ayah)) throw new Error("Rasmdan oyat topilmadi. Aniqroq rasm yuklang.");
       const meta = PV[used].name + ' · ' + usedModel + ' · ' + (ms / 1000).toFixed(1) + ' s' + (usage ? ' · ' + usage.total_tokens + ' token' : '');
       last = parsed; ui.result(parsed, v, meta);
@@ -94,8 +103,9 @@
       const ver = await Q.verify(parsed);           // tarmoq xatosi bo'lsa null — natija baribir saqlanadi
       if (ver) { v = Q.validate(parsed); ui.result(parsed, v, meta); }
       Q.hist.add(parsed); refreshHistory();
+      log.ok('━━ Tugadi ━━ tarixga saqlandi', { jami_s: +((performance.now() - tRun) / 1000).toFixed(2), oyat: parsed.ayahs.length });
       ui.warn("Diqqat: natija sun'iy intellekt tomonidan o'qilgan" + (ver ? '. Yashil belgi — ochiq Mus\'haf matni bilan mos kelganini bildiradi' : '') + ". Muhim joylarni asl Mus'haf bilan tekshiring.");
-    } catch (e) { console.error(e); ui.error(e.message || 'Xatolik.'); }
+    } catch (e) { console.error(e); log.err('━━ Tahlil to\'xtadi ━━ ' + (e.message || 'Xatolik'), { retryable: !!e.retryable }); ui.error(e.message || 'Xatolik.'); }
     finally { busy = false; btn.disabled = false; btn.textContent = 'Ajratish'; }
   });
 

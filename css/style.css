@@ -82,3 +82,35 @@ button.primary:disabled{background:#c9b89a;border-color:#c9b89a;cursor:not-allow
 .toggle button:hover{color:#6b4423}
 .toggle button.on{background:#6b4423;color:#fffef9;font-weight:700}
 .toggle button:disabled{cursor:default;opacity:.6}
+
+#logPanel{margin-top:16px}
+.lg{border:1px solid #3a2f22;border-radius:4px;background:#1b1712;color:#d9ccb0;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:hidden}
+.lg-h,.lg-f{display:flex;align-items:center;gap:8px;padding:8px 10px;flex-wrap:wrap}
+.lg-h{background:#26200f;border-bottom:1px solid #3a2f22;cursor:default}
+.lg-h b{color:#d4af37;letter-spacing:1px;font-weight:700}
+.lg-sp{flex:1}
+.lg-dot{width:8px;height:8px;border-radius:50%;background:#5a4f3a}
+.lg-dot.live{background:#7fc98a;box-shadow:0 0 6px #7fc98a}
+.lg-rate,.lg-cnt{color:#a89070;font-size:11px}
+.lg-cnt::before{content:"· "}
+.lg button{font:inherit;font-size:11px;padding:3px 9px;border:1px solid #4a3d2a;border-radius:3px;background:none;color:#a89070;cursor:pointer}
+.lg button:hover{color:#f0e3c4;border-color:#d4af37}
+.lg button.on{background:#d4af37;border-color:#d4af37;color:#1b1712;font-weight:700}
+.lg-f{border-bottom:1px solid #2c241a}
+.lg-q{flex:1;min-width:120px;padding:4px 8px;border:1px solid #4a3d2a;border-radius:3px;background:#120f0b;color:#d9ccb0;font:inherit;outline:0}
+.lg-q:focus{border-color:#d4af37}
+.lg-b{height:280px;min-height:120px;max-height:80vh;resize:vertical;overflow:auto;padding:4px 0}
+.lg.fold .lg-b,.lg.fold .lg-f{display:none}
+.lg-r{display:flex;flex-wrap:wrap;gap:0 10px;padding:1px 10px;cursor:pointer;border-left:2px solid transparent;word-break:break-word}
+.lg-r:hover{background:#231d14}
+.lg-r .t{color:#6f6450}.lg-r .dt{color:#8a7d64;min-width:64px}.lg-r .lv{min-width:38px;font-weight:700}
+.lg-r .c{color:#d4af37;min-width:52px}.lg-r .m{flex:1 1 auto;min-width:0}
+.lg-r .d{flex-basis:100%;padding-left:2px;color:#8a7d64;white-space:pre-wrap;word-break:break-all}
+.lg-r.open .d{color:#c8bb9f}
+.lv-debug .lv,.lv-debug .m{color:#7a6f5a}
+.lv-info .lv{color:#8fb4d9}
+.lv-ok{border-left-color:#7fc98a}.lv-ok .lv,.lv-ok .m{color:#7fc98a}
+.lv-warn{border-left-color:#e0b04a;background:#221c0d}.lv-warn .lv,.lv-warn .m{color:#e0b04a}
+.lv-err{border-left-color:#e57373;background:#2a1513}.lv-err .lv,.lv-err .m{color:#e57373}
+.lg-b.off-debug .lv-debug,.lg-b.off-info .lv-info,.lg-b.off-ok .lv-ok,.lg-b.off-warn .lv-warn,.lg-b.off-err .lv-err,.lg-r.hid{display:none}
+@media(max-width:600px){.lg-r .t{display:none}.lg-b{height:240px}}
