@@ -12,6 +12,7 @@
   Q.glossary = {
     G,
     apply(data) {
+      return 0;   // O'CHIRILGAN: tarjima rasmdagi kitobdan aynan olinadi, lug'at bilan almashtirilmaydi
       let n = 0;
       ((data && data.ayahs) || []).forEach(a => (a.words || []).forEach(w => {
         const v = G[Q.norm(w.arabic)];

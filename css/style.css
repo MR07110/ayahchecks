@@ -184,3 +184,5 @@ button,a,.job,.q-handle{touch-action:manipulation}
 
 .word-before{font-family:'Amiri Quran','Amiri',serif;font-size:16px;line-height:1.3;direction:rtl;white-space:nowrap;color:#b3261e;text-decoration:line-through;opacity:.75}
 .word-cell.mfix{outline:1px solid #d8c27a}
+.word-cell.aitr .word-uzbek{font-style:italic;color:#8b6f47}
+.word-cell.aitr .word-uzbek::after{content:' *'}

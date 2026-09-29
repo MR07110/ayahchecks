@@ -167,6 +167,7 @@ async function processJob(job, deadline, warm) {
       if (!a || !Array.isArray(a.words)) return;
       a.words.sort((x, y) => (Number(x.index) || 0) - (Number(y.index) || 0));
       a.full_arabic = a.words.map(w => w.arabic).join(' ');
+      if (!String(a.full_uzbek || '').trim()) a.full_uzbek = a.words.map(w => w.uzbek).join(' ');   // to'liq tarjima = kitobdagi so'zma-so'z tarjima, aynan shu tartibda
     });
     let v = Q.validate(parsed);
     if (v.issues.some(i => i.lvl === 'err' && !i.ayah)) return again("Rasmdan oyat topilmadi");

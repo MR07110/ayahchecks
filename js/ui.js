@@ -49,6 +49,7 @@
         a.words.forEach(w => {
           const c = el('div', 'word-cell' + (w._bad ? ' bad' : ''), null, grid);
           el('div', 'word-index', w.index, c); if (w.modelArabic) el('div', 'word-before', w.modelArabic, c); el('div', 'word-arabic', w.arabic, c); el('div', 'word-uzbek', w.uzbek, c);
+          if (w.ai) { c.classList.add('aitr'); if (!w.modelArabic) c.title = "Kitobda tarjima topilmadi: model o'zi tarjima qildi"; }
           if (w.modelArabic) { c.classList.add('mfix'); c.title = "Model: " + w.modelArabic + " → Mus'haf: " + w.arabic; }
           c.tabIndex = 0; if (!w.modelArabic) c.title = w.fix ? "Rasmda: " + w.fix + " (lug'at bilan tuzatildi)" : 'Tarjimani nusxalash'; if (w.fix) c.classList.add('fixed');
           const go = () => { ui.copy(w.uzbek); c.classList.add('copied'); setTimeout(() => c.classList.remove('copied'), 700); };
