@@ -27,13 +27,8 @@
 
   <section class="tab-content active" id="tab-scan">
     <div class="api-section">
-      <label id="providerLabel">Provayder</label>
-      <div class="toggle" id="providerToggle" role="radiogroup" aria-labelledby="providerLabel"></div>
-    </div>
-    <div class="api-section">
-      <label for="apiKeyInput" id="apiKeyLabel">API kaliti</label>
-      <input type="password" id="apiKeyInput" autocomplete="off">
-      <div class="api-hint">Kalit olish: <a id="apiHintLink" target="_blank" rel="noopener"></a></div>
+      <label for="providerSelect">Provayder</label>
+      <select id="providerSelect"></select>
     </div>
     <div class="api-section">
       <label for="modelSelect">Model</label>
@@ -46,7 +41,6 @@
     </label>
     <img id="preview" alt="">
     <button class="primary" id="runBtn" disabled>Ajratish</button>
-    <div id="logPanel"></div>
 
     <div class="result" id="result">
       <div class="result-header">
@@ -61,6 +55,10 @@
       </div>
       <pre class="raw-json" id="rawJson"></pre>
       <div class="meta" id="metaInfo"></div>
+    </div>
+    <div class="log-panel" id="logPanel" hidden>
+      <div class="log-head"><span>Jarayon</span><button type="button" class="icon-btn" id="logClear" title="Tozalash">✕</button></div>
+      <div class="log-box" id="logBox"></div>
     </div>
     <div class="warning-box" id="warningBox"></div>
     <div class="error" id="errorBox"></div>
@@ -77,11 +75,11 @@
 <div class="toast" id="toast"></div>
 
 <script src="js/config.js"></script>
-<script src="js/log.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/validate.js"></script>
 <script src="js/verify.js"></script>
 <script src="js/api.js"></script>
+<script src="js/log.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>
 </body>

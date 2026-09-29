@@ -1,41 +1,24 @@
 (function (Q) {
   const C = Q.CFG, ui = Q.ui, $ = ui.$;
-  const log = Q.log.scope('app');
   let file = null, last = null, busy = false;
 
   // ---- boshlang'ich holat ----
-  const PV = C.PROVIDERS, tg = $('providerToggle'), sel = $('modelSelect');
-  let prov = Q.store.get(C.K_PROVIDER, 'groq'); if (!PV[prov]) prov = 'groq';
-  Object.keys(PV).forEach(id => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.dataset.id = id; b.textContent = PV[id].name; b.setAttribute('role', 'radio');
-    b.addEventListener('click', () => { if (busy || id === prov) return; prov = id; Q.store.set(C.K_PROVIDER, prov); applyProvider(); log.info('Provayder almashtirildi → ' + PV[prov].name, { model: sel.value, kalit: readKey(prov) ? 'bor' : 'yo\'q' }); });
-    tg.appendChild(b);
-  });
-
-  function readKey(id) {
-    let k = Q.store.get(PV[id].kKey, '');
-    if (!k) { try { k = localStorage.getItem(PV[id].kKey) || ''; } catch { k = ''; } }
-    return k;
-  }
-  function modelFor(id) {
-    const saved = Q.store.get(PV[id].kModel, '');
-    return PV[id].models.some(x => x[0] === saved) ? saved : PV[id].models[0][0];
-  }
+  const sel = $('modelSelect'), provSel = $('providerSelect');
+  Object.entries(C.PROVIDERS).forEach(([id, p]) => { const o = document.createElement('option'); o.value = id; o.textContent = p.name; provSel.appendChild(o); });
+  const savedProv = Q.store.get(C.K_PROV, 'groq');
+  provSel.value = C.PROVIDERS[savedProv] ? savedProv : 'groq';
+  const modelKey = () => C.K_MODEL + (provSel.value === 'groq' ? '' : '_' + provSel.value);
   function applyProvider() {
-    const P = PV[prov];
-    tg.querySelectorAll('button').forEach(b => { const on = b.dataset.id === prov; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
-    $('apiKeyLabel').textContent = P.keyLabel; $('apiKeyInput').placeholder = P.ph; $('apiKeyInput').value = readKey(prov);
-    const l = $('apiHintLink'); l.href = P.helpUrl; l.textContent = P.helpText;
-    sel.innerHTML = '';
+    const P = C.PROVIDERS[provSel.value];
+    sel.textContent = '';
     P.models.forEach(([id, name]) => { const o = document.createElement('option'); o.value = id; o.textContent = name; sel.appendChild(o); });
-    sel.value = modelFor(prov);
+    const saved = Q.store.get(modelKey(), '');
+    if (P.models.some(m => m[0] === saved)) sel.value = saved;
   }
-  $('apiKeyInput').addEventListener('input', e => Q.store.set(PV[prov].kKey, e.target.value.trim()));
-  sel.addEventListener('change', () => { Q.store.set(PV[prov].kModel, sel.value); log.info('Model: ' + sel.value); });
   applyProvider();
-  Q.logPanel($('logPanel'));
-  log.info('Provayder: ' + PV[prov].name, { model: sel.value, kalit: readKey(prov) ? 'bor' : 'yo\'q', fallback: C.FALLBACK, tarix: Q.hist.list().length });
+  provSel.addEventListener('change', () => { Q.store.set(C.K_PROV, provSel.value); applyProvider(); });
+  sel.addEventListener('change', () => Q.store.set(modelKey(), sel.value));
+  $('logClear').addEventListener('click', () => Q.log.clear());
 
   const refreshHistory = () => ui.history(openItem, delItem);
   refreshHistory();
@@ -54,7 +37,6 @@
     if (!f.type || !f.type.startsWith('image/')) return ui.error('Faqat rasm fayllari qabul qilinadi.');
     if (f.size > C.MAX_FILE) return ui.error('Fayl hajmi 10 MB dan oshmasligi kerak.');
     ui.hideError(); ui.hideResult(); ui.hideWarn();
-    log.info('Fayl qabul qilindi', { name: f.name || 'clipboard', type: f.type, kb: Math.round(f.size / 1024) });
     file = await Q.api.prepare(f);
     const p = $('preview'); if (p.dataset.url) URL.revokeObjectURL(p.dataset.url);
     p.dataset.url = URL.createObjectURL(file); p.src = p.dataset.url; p.style.display = 'block';
@@ -74,38 +56,23 @@
   // ---- tahlil ----
   $('runBtn').addEventListener('click', async () => {
     if (busy) return;
-    const k = $('apiKeyInput').value.trim();
-    if (!k) return ui.error(PV[prov].name + " API kalitini kiriting.");
+    const P = C.PROVIDERS[provSel.value];
     if (!file) return ui.error('Rasm tanlang.');
-    const tRun = performance.now(); Q.log.mark(); log.info('━━ Tahlil boshlandi ━━', { provider: PV[prov].name, model: sel.value, rasm_kb: Math.round(file.size / 1024) });
     busy = true; const btn = $('runBtn'); btn.disabled = true; btn.textContent = 'Ajratilmoqda...';
     ui.hideError(); ui.hideResult(); ui.hideWarn();
+    $('logPanel').hidden = false; Q.log.clear(); Q.log.info('Boshlandi: ' + P.name + ' / ' + sel.value);
     try {
-      const onStatus = s => { btn.textContent = s; };
-      let used = prov, res;
-      try { res = await Q.api.analyze({ file, key: k, model: sel.value, provider: prov, onStatus }); }
-      catch (e) {
-        const other = Object.keys(PV).find(id => id !== prov && readKey(id));
-        if (!(C.FALLBACK && e.retryable && other)) throw e;
-        log.warn('Zaxira provayderga o\'tilmoqda: ' + PV[prov].name + ' → ' + PV[other].name, { sabab: e.message });
-        used = other; btn.textContent = PV[other].name + " ga o'tilmoqda...";
-        res = await Q.api.analyze({ file, key: readKey(other), model: modelFor(other), provider: other, onStatus });
-      }
-      const { parsed, usage, ms } = res, usedModel = used === prov ? sel.value : modelFor(used);
+      const { parsed, usage, ms } = await Q.api.analyze({ file, model: sel.value, provider: provSel.value, onStatus: s => { btn.textContent = s; } });
       let v = Q.validate(parsed);
-      const vl = Q.log.scope('validate');
-      vl[v.score >= 90 ? 'ok' : 'warn']('Ichki tekshiruv: ' + v.score + '%', { oyat: v.ayahs, soz: v.words, muammo: v.issues.length });
-      v.issues.forEach(i => vl[i.lvl === 'err' ? 'err' : 'warn']('Oyat #' + i.ayah + ': ' + i.msg));
       if (v.issues.some(i => i.lvl === 'err' && !i.ayah)) throw new Error("Rasmdan oyat topilmadi. Aniqroq rasm yuklang.");
-      const meta = PV[used].name + ' · ' + usedModel + ' · ' + (ms / 1000).toFixed(1) + ' s' + (usage ? ' · ' + usage.total_tokens + ' token' : '');
+      const meta = 'Model: ' + sel.value + ' · ' + (ms / 1000).toFixed(1) + ' s' + (usage ? ' · ' + usage.total_tokens + ' token' : '');
       last = parsed; ui.result(parsed, v, meta);
-      btn.textContent = "Mus'haf bilan solishtirilmoqda...";
+      btn.textContent = "Mus'haf bilan solishtirilmoqda..."; Q.log.info("Mus'haf (alquran.cloud) bilan solishtirilmoqda...");
       const ver = await Q.verify(parsed);           // tarmoq xatosi bo'lsa null — natija baribir saqlanadi
-      if (ver) { v = Q.validate(parsed); ui.result(parsed, v, meta); }
+      if (ver) { v = Q.validate(parsed); ui.result(parsed, v, meta); Q.log.ok("Solishtirish tugadi"); } else Q.log.warn("Mus'haf bilan solishtirib bo'lmadi (tarmoq)");
       Q.hist.add(parsed); refreshHistory();
-      log.ok('━━ Tugadi ━━ tarixga saqlandi', { jami_s: +((performance.now() - tRun) / 1000).toFixed(2), oyat: parsed.ayahs.length });
       ui.warn("Diqqat: natija sun'iy intellekt tomonidan o'qilgan" + (ver ? '. Yashil belgi — ochiq Mus\'haf matni bilan mos kelganini bildiradi' : '') + ". Muhim joylarni asl Mus'haf bilan tekshiring.");
-    } catch (e) { console.error(e); log.err('━━ Tahlil to\'xtadi ━━ ' + (e.message || 'Xatolik'), { retryable: !!e.retryable }); ui.error(e.message || 'Xatolik.'); }
+    } catch (e) { console.error(e); Q.log.err(e.message || 'Xatolik.'); ui.error(e.message || 'Xatolik.'); }
     finally { busy = false; btn.disabled = false; btn.textContent = 'Ajratish'; }
   });
 

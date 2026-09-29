@@ -2,19 +2,15 @@
   const BSM = 'بسماللهالرحمنالرحيم', MARK = /[\u064B-\u065F\u0670]/, ANY = /[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/, ANNOT = /[\u06D6-\u06ED\u0640]/;
   const EDITIONS = ['quran-simple', 'quran-uthmani'];  // birinchisida harakat bo'lmasa ikkinchisi olinadi
   let DB = null;
-  const log = () => Q.log.scope('verify');
 
   async function getJSON(url) {
-    const L = log(), t = performance.now(); let cache = null;
+    let cache = null;
     try { cache = window.caches ? await caches.open('ayahchecks-v1') : null; } catch (e) { /* kesh ixtiyoriy */ }
     try {
-      let r = cache ? await cache.match(url) : null, hit = !!r;
-      L.debug(hit ? 'Keshdan olinmoqda' : 'Tarmoqdan yuklanmoqda', { url: url.replace('https://api.alquran.cloud/v1/', '') });
-      if (!r) { r = await fetch(url); if (!r.ok) { L.warn('Mus\'haf yuklanmadi', { status: r.status }); return null; } if (cache) { try { await cache.put(url, r.clone()); } catch (e) { /* */ } } }
-      const j = await r.json();
-      L.ok((hit ? 'Kesh' : 'Tarmoq') + ' · yuklandi', { ms: Math.round(performance.now() - t) });
-      return j;
-    } catch (e) { L.err('Mus\'haf yuklashda xato: ' + e.message); return null; }
+      let r = cache ? await cache.match(url) : null;
+      if (!r) { r = await fetch(url); if (!r.ok) return null; if (cache) { try { await cache.put(url, r.clone()); } catch (e) { /* */ } } }
+      return await r.json();
+    } catch (e) { return null; }
   }
   const tri = s => { const t = new Set(); for (let i = 0; i + 3 <= s.length; i++) t.add(s.slice(i, i + 3)); return t; };
 
@@ -31,16 +27,11 @@
     return list.length ? { list, marks: marked >= 20 } : null;
   }
   async function load() {
-    const L = log();
-    if (DB) { L.debug('Mus\'haf bazasi xotirada tayyor', { oyat: DB.list.length }); return DB; }
+    if (DB) return DB;
     for (const ed of EDITIONS) {
-      L.info('Mus\'haf nashri: ' + ed);
-      const t = performance.now(), db = build(await getJSON('https://api.alquran.cloud/v1/quran/' + ed));
-      if (db) L.info('Baza qurildi', { oyat: db.list.length, harakatli: db.marks, ms: Math.round(performance.now() - t) });
+      const db = build(await getJSON('https://api.alquran.cloud/v1/quran/' + ed));
       if (db && (db.marks || ed === EDITIONS[EDITIONS.length - 1])) return (DB = db);
-      if (db) L.warn(ed + ' da harakat yo\'q — keyingi nashr sinaladi');
     }
-    L.err('Mus\'haf bazasi olinmadi — tekshiruv o\'tkazib yuborildi');
     return null;
   }
 
@@ -114,14 +105,12 @@
   }
 
   Q.verify = async function (data) {
-    const L = log(), tV = performance.now();
     const db = await load();
     if (!db) return null;
     const votes = new Map(); let checked = 0;
-    L.info('Oyatlar solishtirilmoqda', { soni: data.ayahs.length });
     data.ayahs.forEach(a => {
-      const ta = performance.now(), hit = locate(a, db.list, Number(data.surah_number), Number(a.number));
-      if (!hit) { a.src = null; a.verified = null; L.warn('Oyat #' + a.number + ' Mus\'hafdan topilmadi', { ms: Math.round(performance.now() - ta) }); return; }
+      const hit = locate(a, db.list, Number(data.surah_number), Number(a.number));
+      if (!hit) { a.src = null; a.verified = null; return; }
       const slice = hit.x.words.slice(hit.r.start, hit.r.end), st = slice.join(' ');
       const mt = a.words.map(w => w.arabic).join(' '), d = diff(mt, st, db.marks);
       a.verified = Q.sim(Q.norm(mt), Q.norm(st));
@@ -130,14 +119,11 @@
       if (Number(a.number) !== hit.x.n) a.modelNumber = a.number;
       a.number = hit.x.n;
       votes.set(hit.x.s, (votes.get(hit.x.s) || 0) + 1); checked++;
-      const pct = Math.round(a.verified * 100), lv = a.verified >= Q.CFG.VERIFY_MIN && !a.lDiff ? 'ok' : 'warn';
-      L[lv]('Oyat ' + hit.x.s + ':' + hit.x.n + ' · moslik ' + pct + '%', { harf_xato: a.lDiff, harakat_xato: a.mkDiff, model_raqami: a.modelNumber, aniq_moslik: hit.alt, qisman: a.src.partial, ms: Math.round(performance.now() - ta) });
     });
     if (votes.size) {
       const s = [...votes.entries()].sort((x, y) => y[1] - x[1])[0][0];
       data.surah_number = s; data.surah = (db.list.find(x => x.s === s) || {}).sn || data.surah;
     }
-    L.ok('Tekshiruv tugadi', { tekshirildi: checked + '/' + data.ayahs.length, sura: data.surah_number, ms: Math.round(performance.now() - tV) });
     return { checked, marks: db.marks };
   };
   Q._v = { diff, align };   // test uchun
