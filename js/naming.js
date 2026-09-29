@@ -22,5 +22,14 @@
     const soz = i.single ? p3(i.wmin) + '-' + p3(i.wmax) : p3(i.total) + 'ta';
     return p3(i.s) + '-' + i.name + '_oyat-' + oyat + '_soz-' + soz;
   }
+  // Sodda JSON: faqat so'zlar (arabcha + o'zbekcha) va qaysi sura, qaysi oyatdan ekani. Boshqa hamma texnik maydon tashlanadi.
+  function simple(d) {
+    return {
+      surah: Number(d && d.surah_number) || 0,
+      surah_name: (d && d.surah) || '',
+      ayahs: ((d && d.ayahs) || []).map(a => ({ ayah: Number(a.number), words: (a.words || []).map(w => ({ arabic: w.arabic, uzbek: w.uzbek })) }))
+    };
+  }
   Q.name = { SURAH, info, file };
+  Q.simple = simple;
 })(typeof window !== "undefined" ? window.QW : globalThis.QW);

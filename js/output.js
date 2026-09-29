@@ -13,7 +13,7 @@
       $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (e) { ui.error(e.message); }
   }
-  const clean = d => JSON.stringify(d, (k, v) => k === '_bad' ? undefined : v, 2);
+  const clean = d => JSON.stringify(Q.simple(d), null, 2);   // faqat so'zlar + sura/oyat
   function save(blob, name) {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();

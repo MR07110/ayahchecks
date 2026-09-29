@@ -4,6 +4,7 @@
 const crypto = require('crypto');
 const PROMPT = require('./_prompt');
 const sb = require('./_sb');
+const REVIEW = require('./_review');
 globalThis.QW = globalThis.QW || { CFG: {} };
 const Q = globalThis.QW;
 require('../js/naming.js'); require('../js/validate.js'); require('../js/verify.js');   // brauzer bilan bir xil mantiq
@@ -40,11 +41,12 @@ async function stillHalted(st) {
   await clearHalt(); return false;
 }
 
-async function callGroq(model, image, timeoutMs) {
+async function callGroq(model, image, timeoutMs, opt) {
+  opt = opt || {};
   const t0 = Date.now();
   const body = {
-    model, temperature: 0.05, max_tokens: 16000, response_format: { type: 'json_object' }, reasoning_effort: 'none',   // "o'ylash" tokenlari javobni uzib qo'ymasin
-    messages: [{ role: 'user', content: [{ type: 'text', text: PROMPT }, { type: 'image_url', image_url: { url: image } }] }]
+    model, temperature: 0.05, max_tokens: opt.max || 16000, response_format: { type: 'json_object' }, reasoning_effort: 'none',   // "o'ylash" tokenlari javobni uzib qo'ymasin
+    messages: [{ role: 'user', content: [{ type: 'text', text: opt.text || PROMPT }, { type: 'image_url', image_url: { url: image } }] }]
   };
   const once = async () => {
     const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), Math.max(5000, timeoutMs - (Date.now() - t0)));
@@ -162,6 +164,14 @@ async function processJob(job, deadline, warm) {
       parsed = parsed || salvage(g.content);
       if (!parsed) return fail('Javobni o\'qib bo\'lmadi. Rasmni qayta yuklang.');
       cut = true;
+    }
+    // 2-o'tish: model ko'chirilgan natijani rasm bilan qayta solishtirib, ko'chirish xatolarini tuzatadi (vaqt yetsa; xato bo'lsa birinchi natija saqlanadi)
+    if (!cut && process.env.REVIEW_PASS !== '0' && deadline - Date.now() > 14000) {
+      try {
+        const slim = { ayahs: (parsed.ayahs || []).map(a => ({ number: a.number, words: (a.words || []).map(w => (w.ai ? { index: w.index, arabic: w.arabic, uzbek: w.uzbek, ai: true } : { index: w.index, arabic: w.arabic, uzbek: w.uzbek })) })) };
+        const r2 = await callGroq(job.model, image, Math.max(8000, Math.min(26000, deadline - Date.now() - 3500)), { text: REVIEW.PROMPT + JSON.stringify(slim), max: 3000 });
+        if (r2.kind === 'ok' && r2.finish !== 'length') { const j2 = parseJSON(r2.content); parsed.reviewed = REVIEW.apply(parsed, j2.fixes, Q); }
+      } catch (e) { console.error('review:', e.message); }
     }
     (parsed.ayahs || []).forEach(a => {                 // full_arabic ni so'zlardan o'zimiz yig'amiz (modelga yozdirmaymiz: tez va aniq)
       if (!a || !Array.isArray(a.words)) return;
