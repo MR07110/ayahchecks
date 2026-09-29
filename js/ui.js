@@ -69,21 +69,49 @@
       });
       el('div', 'diff-legend', "Qizil — modelda xato/ortiqcha · Yashil — manbada bor · Sariq — harakat farqi" + (a.mkDiff === null ? " · manbada harakat yo'q, harakatlar tekshirilmadi" : ''), d);
     },
-    history(onOpen, onDelete) {
+    history(h) {
       const l = Q.hist.list(), box = $('historyList'); box.textContent = '';
       $('historyCount').textContent = l.length;
       $('historyToolbar').hidden = !l.length;
       if (!l.length) return el('div', 'history-empty', "Tarix bo'sh.", box);
       $('historyInfo').textContent = 'Jami: ' + l.length + ' ta yozuv';
       l.forEach(it => {
-        const d = new Date(it.date), p = n => String(n).padStart(2, '0');
+        const d = new Date(it.date), p = n => String(n).padStart(2, '0'), ays = (it.data && it.data.ayahs) || [];
+        const words = ays.reduce((s, a) => s + (a.words ? a.words.length : 0), 0), chk = ays.filter(a => a.src);
+        const good = chk.filter(a => a.verified >= C.VERIFY_MIN && !a.lDiff && !a.mkDiff).length;
+        const meta = [];
+        if (it.file) meta.push('Rasm: ' + it.file);
+        meta.push(p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()));
+        meta.push(words + " so'z");
+        meta.push(chk.length ? '✓ ' + good + '/' + chk.length + ' oyat manbaga mos' : "Mus'haf bilan solishtirilmagan");
         const row = el('div', 'history-item', null, box), info = el('div', 'history-item-info', null, row);
-        el('div', 'history-item-title', it.surah || "Noma'lum", info);
-        el('div', 'history-item-meta', (it.surah_number ? it.surah_number + '-sura · ' : '') + it.ayah_count + ' oyat · ' + p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()), info);
-        const acts = el('div', '', null, row), del = el('button', 'icon-btn danger', '✕', acts);
-        del.title = "O'chirish";
-        row.addEventListener('click', () => onOpen(it.id));
-        del.addEventListener('click', e => { e.stopPropagation(); onDelete(it.id); });
+        el('div', 'history-item-title', Q.exp.title(it), info);
+        el('div', 'history-item-meta', meta.join(' · '), info);
+        el('div', 'history-item-file', 'Fayl: ' + Q.exp.filename(it), info);
+        const acts = el('div', 'history-acts', null, row);
+        const dl = el('button', 'icon-btn', '⬇', acts), del = el('button', 'icon-btn danger', '✕', acts);
+        dl.title = 'JSON yuklab olish'; del.title = "O'chirish";
+        row.addEventListener('click', () => h.open(it.id));
+        dl.addEventListener('click', e => { e.stopPropagation(); h.dl(it.id); });
+        del.addEventListener('click', e => { e.stopPropagation(); h.del(it.id); });
+      });
+    },
+    queue(list, h) {
+      const box = $('queue'), l = $('queueList'); l.textContent = '';
+      box.hidden = !list.length; if (!list.length) return;
+      const cnt = s => list.filter(x => x.status === s).length;
+      $('queueInfo').textContent = 'Navbat: ' + cnt('ok') + '/' + list.length + ' tayyor' + (cnt('err') ? ' · ' + cnt('err') + ' xato' : '');
+      const ICON = { wait: '⏳', work: '⚙', ok: '✓', err: '⚠' }, LAB = { wait: 'Kutilmoqda', work: 'Tahlil qilinmoqda...', ok: 'Tayyor', err: 'Xato' };
+      list.forEach(q => {
+        const row = el('div', 'q-item q-' + q.status, null, l);
+        el('span', 'q-icon', ICON[q.status], row);
+        const info = el('div', 'q-info', null, row);
+        el('div', 'q-name', q.name, info); el('div', 'q-msg', q.msg || LAB[q.status], info);
+        const acts = el('div', 'q-acts', null, row);
+        const b = (t, fn) => { const x = el('button', 'mini', t, acts); x.type = 'button'; x.addEventListener('click', fn); return x; };
+        if (q.status === 'ok') { b("Ko'rish", () => h.view(q)); b('⬇ JSON', () => h.dl(q)); }
+        if (q.status === 'err') b('Qayta', () => h.retry(q));
+        if (q.status === 'wait' || q.status === 'err') b('✕', () => h.remove(q));
       });
     }
   };

@@ -11,7 +11,7 @@ window.QW = {
     MAX_TOKENS: 8000,
     TIMEOUT_MS: 120000,
     RETRIES: 2,
-    HISTORY_MAX: 50,
+    HISTORY_MAX: 300,
     VERIFY_MIN: 0.92,         // Mus'haf bilan mosligi chegarasi
     K_MODEL: 'GROQ_MODEL',
     K_PROV: 'AI_PROVIDER',

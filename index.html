@@ -35,12 +35,14 @@
       <select id="modelSelect"></select>
     </div>
     <label class="drop-zone" id="dropZone" for="imageInput">
-      <div class="title">So'zma-so'z rasmni bu yerga tashlang</div>
-      <div class="subtitle-small">yoki bosing · yoki Ctrl+V bilan qo'ying</div>
-      <input type="file" id="imageInput" accept="image/*">
+      <div class="title">So'zma-so'z rasmlarni bu yerga tashlang</div>
+      <div class="subtitle-small">bir nechta rasm mumkin · bosing yoki Ctrl+V · har biri navbat bilan avtomatik tahlil qilinadi</div>
+      <input type="file" id="imageInput" accept="image/*" multiple>
     </label>
-    <img id="preview" alt="">
-    <button class="primary" id="runBtn" disabled>Ajratish</button>
+    <div class="queue" id="queue" hidden>
+      <div class="queue-head"><span id="queueInfo"></span><button type="button" class="mini" id="queueClear" title="Tayyor bo'lganlarni ro'yxatdan olib tashlash">Tayyorlarini tozalash</button></div>
+      <div id="queueList"></div>
+    </div>
 
     <div class="result" id="result">
       <div class="result-header">
@@ -51,6 +53,7 @@
       <div id="ayahList"></div>
       <div class="actions">
         <button id="copyBtn">Nusxalash</button>
+        <button id="dlBtn">⬇ JSON yuklash</button>
         <button id="jsonBtn">JSON ko'rish</button>
       </div>
       <pre class="raw-json" id="rawJson"></pre>
@@ -67,6 +70,7 @@
   <section class="tab-content" id="tab-history">
     <div class="history-toolbar" id="historyToolbar" hidden>
       <span id="historyInfo"></span>
+      <button type="button" class="mini" id="dlAllBtn">⬇ Hammasini yuklash (ZIP)</button>
       <button class="icon-btn danger" id="clearAllBtn" title="Barchasini o'chirish">✕</button>
     </div>
     <div id="historyList"></div>
@@ -79,6 +83,8 @@
 <script src="js/validate.js"></script>
 <script src="js/verify.js"></script>
 <script src="js/api.js"></script>
+<script src="js/surahs.js"></script>
+<script src="js/export.js"></script>
 <script src="js/log.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>

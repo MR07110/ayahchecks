@@ -51,7 +51,7 @@ button.primary:disabled{background:#c9b89a;border-color:#c9b89a;cursor:not-allow
 .history-item{border:1px solid #e0d5bf;border-radius:4px;padding:16px 18px;margin-bottom:12px;background:#fffef9;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:14px}
 .history-item:hover{border-color:#d4af37;background:#faf5e6}
 .history-item-info{flex:1;min-width:0}
-.history-item-title{font-size:16px;color:#6b4423;margin-bottom:4px;font-family:'Amiri',serif;direction:rtl;text-align:right}
+.history-item-title{font-size:15px;color:#6b4423;margin-bottom:4px;font-weight:700}
 .history-item-meta{font-size:11px;color:#a89070}
 .history-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid #e0d5bf;font-size:13px;color:#8b6f47}
 .icon-btn{width:32px;height:32px;font-size:13px;background:#fffef9;color:#6b4423;border:1px solid #d4af37;border-radius:3px;cursor:pointer}
@@ -82,3 +82,17 @@ button.primary:disabled{background:#c9b89a;border-color:#c9b89a;cursor:not-allow
 .log-line{white-space:pre-wrap;word-break:break-word}
 .log-line.ok{color:#8fd694}.log-line.warn{color:#f0c060}.log-line.err{color:#ff8a80}
 code{font-family:monospace;background:#f0e8d0;padding:0 4px;border-radius:2px}
+
+.history-item-file{font:11px monospace;color:#8b6f47;margin-top:4px;word-break:break-all}
+.history-acts{display:flex;gap:6px}
+.history-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.history-toolbar #historyInfo{flex:1;font-size:12px;color:#a89070}
+button.mini{padding:6px 12px;font:12px Georgia,serif;color:#6b4423;background:#fffef9;border:1px solid #d4af37;border-radius:3px;cursor:pointer}
+button.mini:hover{background:#faf5e6}
+.queue{margin:16px 0;border:1px solid #e0d5bf;border-radius:4px;background:#fffef9}
+.queue-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;font-size:13px;color:#6b4423;border-bottom:1px solid #e0d5bf}
+.q-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid #f0e8d0}.q-item:last-child{border-bottom:0}
+.q-icon{width:20px;text-align:center}.q-info{flex:1;min-width:0}
+.q-name{font-size:13px;color:#2c1810;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.q-msg{font-size:11px;color:#a89070}.q-acts{display:flex;gap:6px}
+.q-work .q-icon{animation:qspin 1.2s linear infinite}@keyframes qspin{to{transform:rotate(360deg)}}
+.q-ok .q-icon{color:#3d7a3d}.q-err .q-icon,.q-err .q-msg{color:#8b3a24}
