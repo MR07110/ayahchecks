@@ -2,7 +2,7 @@
 // rasmlar Storage'ga yuklanadi, Start/Stop holati bazada — brauzer yopilsa ham navbat davom etadi.
 (function (Q) {
   const C = Q.CFG, ui = Q.ui, $ = ui.$, J = Q.jobs, R = Q.run;
-  const queue = []; let dragIt = null, orderTimer = null;
+  const queue = []; let dragIt = null, orderTimer = null, orderDirty = false;
   const EDITABLE = ['queued', 'done', 'error'];          // faqat shu holatdagi rasmni ko'chirish/o'chirish mumkin
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
   const queued = () => queue.filter(i => i.state === 'queued');
@@ -108,8 +108,8 @@
 
   // ---- tartib (bazaga yoziladi: server shu tartibda oladi) ----
   const orderIds = () => queue.filter(i => i.jobId && ['uploading', 'queued'].includes(i.state)).map(i => i.jobId);
-  async function pushOrder() { clearTimeout(orderTimer); await J.setOrder(orderIds()); }
-  function scheduleOrder() { clearTimeout(orderTimer); orderTimer = setTimeout(() => { pushOrder(); }, 500); }
+  async function pushOrder() { clearTimeout(orderTimer); try { await J.setOrder(orderIds()); } finally { orderDirty = false; } }
+  function scheduleOrder() { orderDirty = true; clearTimeout(orderTimer); orderTimer = setTimeout(() => { pushOrder(); }, 500); }
   function move(it, dir) {
     const i = queue.indexOf(it), j = i + dir;
     if (j < 0 || j >= queue.length) return;
@@ -204,7 +204,7 @@
       if (!it) { fresh.push(r); return; }
       if (it.state === 'uploading' && r.status === 'uploading') return;           // brauzer o'zi yuklayapti
       if (!it.editing && r.filename !== it.name) it.name = r.filename;
-      it.state = r.status; it.msg = r.message || ''; it.checkId = r.check_id; it.path = r.image_path || it.path;
+      it.state = r.status; it.msg = r.message || ''; it.checkId = r.check_id; it.path = r.image_path || it.path; it.pos = r.position;
       render(it);
     });
     queue.filter(i => i.jobId && !seen.has(i.jobId) && i.state !== 'uploading').forEach(it => { queue.splice(queue.indexOf(it), 1); leave(it.row); });
@@ -213,9 +213,13 @@
     if (fresh.length) {                                                            // boshqa tab/oldingi sessiyadagi ishlar
       const th = await J.thumbs(fresh.map(r => r.image_path));
       fresh.forEach(r => {
-        const it = { jobId: r.id, name: r.filename || "Noma'lum", state: r.status, msg: r.message || '', checkId: r.check_id, path: r.image_path, url: th[r.image_path] || '' };
+        const it = { jobId: r.id, name: r.filename || "Noma'lum", state: r.status, msg: r.message || '', checkId: r.check_id, path: r.image_path, pos: r.position, url: th[r.image_path] || '' };
         queue.push(it); build(it); render(it);
       });
+    }
+    if (!orderDirty && !dragIt) {                                                    // boshqa qurilmada o'zgargan tartib shu yerga ham keladi
+      const idx = new Map(rows.map((r, i) => [r.id, i])), at = it => idx.has(it.jobId) ? idx.get(it.jobId) : 1e9;
+      queue.sort((a, b) => at(a) - at(b));
     }
     relayout();
   }
@@ -223,7 +227,9 @@
     const it = queue.find(i => i.jobId === r.id); if (!it) return false;
     if (it.state === 'uploading' && r.status === 'uploading') return true;
     if (!it.editing && r.filename !== it.name) it.name = r.filename;
-    it.state = r.status; it.msg = r.message || ''; it.checkId = r.check_id; it.path = r.image_path || it.path; render(it); return true;
+    it.state = r.status; it.msg = r.message || ''; it.checkId = r.check_id; it.path = r.image_path || it.path; render(it);
+    if (r.position !== it.pos) { it.pos = r.position; if (!orderDirty && !dragIt) scheduleDB(); }   // tartib o'zgardi: ro'yxatni qayta tuzamiz
+    return true;
   }
   function onChange(p) {
     if (p.eventType === 'DELETE') { const it = queue.find(i => i.jobId === p.old.id); if (it && it.state !== 'uploading') { queue.splice(queue.indexOf(it), 1); leave(it.row); relayout(); } return; }
@@ -232,9 +238,7 @@
   let dbTimer;
   const scheduleDB = () => { clearTimeout(dbTimer); dbTimer = setTimeout(fromDB, 300); };
   Q.supa.ready.then(() => {
-    fromDB();
-    Q.supa.client().channel('input-jobs').on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, onChange).subscribe();
-    setInterval(() => { if (!document.hidden) fromDB(); }, 12000);                   // Realtime uzilsa ham yangilanib turadi
+    Q.live.watch({ name: 'input-jobs', table: 'jobs', onEvent: onChange, refetch: fromDB, poll: 5000 });   // Realtime + o'zi qayta ulanish + uyg'onganda yangilash
   }).catch(() => {});
 
   // ---- fayl qabul qilish ----

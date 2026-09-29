@@ -24,11 +24,11 @@
     catch (e) { ui.error(e.message); }
   }
   async function delItem(id) {
-    try { await Q.hist.remove(id); refresh(); ui.toast("O'chirildi"); } catch (e) { ui.error(e.message); }
+    try { await Q.hist.remove(id); sig = signature(); refresh(); ui.toast("O'chirildi"); } catch (e) { ui.error(e.message); }
   }
   $('clearAllBtn').addEventListener('click', async () => {
     if (!confirm("Barcha natijalarni o'chirasizmi?")) return;
-    try { await Q.hist.clear(); refresh(); ui.hideResult(); ui.toast("Hammasi o'chirildi"); } catch (e) { ui.error(e.message); }
+    try { await Q.hist.clear(); sig = signature(); refresh(); ui.hideResult(); ui.toast("Hammasi o'chirildi"); } catch (e) { ui.error(e.message); }
   });
 
   $('copyBtn').addEventListener('click', async () => {
@@ -66,9 +66,14 @@
     finally { btn.disabled = false; btn.textContent = t0; }
   });
 
-  Q.supa.ready.then(() => Q.hist.load()).then(() => {
-    refresh();
+  // Ro'yxat boshqa qurilmada o'zgarsa (yangi natija / o'chirilgan) shu yerda ham jonli yangilanadi
+  let sig = null;
+  const signature = () => Q.hist.list().map(x => x.id + ':' + x.score).join(',');
+  async function reload() { await Q.hist.load(); const s = signature(); if (s !== sig) { sig = s; refresh(); } }
+  Q.supa.ready.then(async () => {
+    await Q.hist.load(); sig = signature(); refresh();
     const id = new URLSearchParams(location.search).get('id');
     if (id) openItem(id);
+    Q.live.watch({ name: 'checks-live', table: 'checks', onEvent: () => reload().catch(() => {}), refetch: reload, poll: 8000 });
   }).catch(e => ui.error(e.message));
 })(window.QW);

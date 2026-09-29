@@ -53,12 +53,9 @@
     });
   }
 
-  let timer;
   async function load() {
-    clearTimeout(timer);
     try { jobs = await J.list(200); render(); ui.hideError(); }
     catch (e) { $('liveDot').className = 'live-dot off'; ui.error(e.message); }
-    timer = setTimeout(load, 8000);   // Realtime uzilsa ham yangilanib turadi
   }
   function onChange(pl) {
     if (pl.eventType === 'DELETE') jobs = jobs.filter(j => j.id !== pl.old.id);
@@ -67,7 +64,7 @@
   }
   Q.run.on(() => { if (live) render(); });
   Q.supa.ready.then(() => {
-    Q.supa.client().channel('jobs-live').on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, onChange).subscribe();
-    live = true; return load();
+    live = true;
+    Q.live.watch({ name: 'jobs-live', table: 'jobs', onEvent: onChange, refetch: load, poll: 5000 });
   }).catch(e => { $('liveDot').className = 'live-dot off'; $('liveTitle').textContent = 'Ulanib bo\'lmadi'; ui.error(e.message); });
 })(window.QW);

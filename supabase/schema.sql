@@ -178,6 +178,7 @@ revoke all on function public.claim_worker(int), public.release_worker(), public
 grant execute on function public.claim_worker(int), public.release_worker(), public.claim_next_job(boolean) to service_role;
 
 -- Realtime
+do $$ begin alter publication supabase_realtime add table public.checks; exception when duplicate_object then null; end $$;
 do $$ begin alter publication supabase_realtime add table public.user_state; exception when duplicate_object then null; end $$;
 do $$ begin alter publication supabase_realtime add table public.app_state; exception when duplicate_object then null; end $$;
 

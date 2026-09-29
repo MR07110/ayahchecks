@@ -59,6 +59,7 @@
       read(); n++;
       if (S.halt || (S.running && n % 3 === 0)) kick();
     }, 5000);
+    Q.live.onWake(() => { read(); if (S.running) kick(); });
     if (S.running) kick();
   }).catch(() => {});                       // xatoni sahifaning o'zi ko'rsatadi
 })(window.QW);
