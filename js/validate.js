@@ -36,9 +36,9 @@
       ws.forEach(w => { w._bad = !String(w.uzbek || '').trim() || /\?\?\?/.test(w.uzbek); });
       const q = ws.filter(w => w._bad).length;
       t(q === 0, 'warn', q + " ta tarjima o'qilmadi (???)");
-      const u = ws.map(w => String(w.uzbek || '').trim().toLowerCase()).filter(x => x.length > 3);
-      const dup = u.length - new Set(u).size;
-      t(dup === 0, 'warn', dup + " ta takroriy tarjima (nusxa bo'lishi mumkin)");
+      const u = ws.map(w => String(w.uzbek || '').trim().toLowerCase());
+      const dup = u.filter((x, i) => i > 0 && x.length > 3 && x === u[i - 1]).length;   // ketma-ket bir xil = nusxa; uzoqda takrorlansa ("ularga") to'g'ri
+      t(dup === 0, 'warn', dup + " ta ketma-ket takroriy tarjima (nusxa bo'lishi mumkin)");
       const s = sim(norm(ws.map(w => w.arabic).join('')), norm(a.full_arabic));
       a.match = s;
       t(s >= 0.9, 'warn', "So'zlar va to'liq oyat mos emas (" + Math.round(s * 100) + '%)');

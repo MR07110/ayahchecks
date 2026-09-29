@@ -79,14 +79,14 @@
       d.open = !!(a.lDiff || a.mkDiff);
       el('summary', '', 'Manba va farqlar (' + a.src.s + ':' + a.src.n + ')', d);
       const info = el('div', 'diff-src', null, d);
-      info.appendChild(document.createTextNode('Manba: alquran.cloud · ' + a.src.s + '-sura, ' + a.src.n + '-oyat' + (a.src.partial ? " (bo'lak)" : '') + (a.src.alt > 1 ? ' · bu matn ' + a.src.alt + ' joyda uchraydi' : '') + ' · '));
+      info.appendChild(document.createTextNode('Manba: Uthmoniy Mus\'haf · ' + a.src.s + '-sura, ' + a.src.n + '-oyat' + (a.src.partial ? " (bo'lak)" : '') + (a.src.alt > 1 ? ' · bu matn ' + a.src.alt + ' joyda uchraydi' : '') + ' · '));
       const link = el('a', '', 'quran.com', info); link.href = 'https://quran.com/' + a.src.s + '/' + a.src.n; link.target = '_blank'; link.rel = 'noopener';
       [['− Model', 'm', 'd-del'], ['+ Manba', 's', 'd-add']].forEach(([lab, key, bad]) => {
         const row = el('div', 'diff-row', null, d); el('div', 'diff-lab', lab, row);
         const txt = el('div', 'diff-txt', null, row);
         a.diff.forEach(g => { if (g[key]) el('span', g.t === 'mk' ? 'd-mk' : g.t === 'eq' ? '' : bad, g[key], txt); });
       });
-      el('div', 'diff-legend', "Qizil — modelda xato/ortiqcha · Yashil — manbada bor · Sariq — harakat farqi" + (a.mkDiff === null ? " · manbada harakat yo'q, harakatlar tekshirilmadi" : ''), d);
+      el('div', 'diff-legend', "Qizil — modelda xato/ortiqcha · Yashil — manbada bor · Sariq — harakat farqi · Sukun, kichik alif, maddah va Naskh/Uthmoniy imlo uslubi farqlari hisobga olinmaydi" + (a.mkDiff === null ? " · manbada harakat yo'q, harakatlar tekshirilmadi" : ''), d);
     },
     history(onOpen, onDelete, onDownload) {
       const l = Q.hist.list(), box = $('historyList'); box.textContent = '';

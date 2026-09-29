@@ -143,7 +143,13 @@
     return o;
   }
   const lk = k => k.c === ' ' ? ' ' : (Q.norm(k.c) || k.c);
-  const mk = k => [...k.m].filter(x => !ANNOT.test(x)).sort().join('');
+  // Naskh va Uthmani yozuvi orasidagi FARQ EMAS, uslub farqi: sukun (ْ / ۡ), kichik alif (ٰ), maddah, hamza belgisi,
+  // Uthmani'ning ochiq tanvin belgilari (ٞ ٗ ٖ) va Qur'on anotatsiyalari. Ular solishtirishda hisobga olinmaydi.
+  const SKIP = /[\u0640\u0652-\u0655\u0670\u06D6-\u06ED]/, OPEN = { '\u065E': '\u064B', '\u0657': '\u064C', '\u0656': '\u064D' };
+  const mk = k => [...k.m].filter(x => !SKIP.test(x)).map(x => OPEN[x] || x).sort().join('');
+  // Belgisiz alif (ا / ٱ): Uthmani'da kichik alif bilan yoziladi, Naskh'da to'liq alif bilan — imlo uslubi, xato emas
+  const soft = k => lk(k) === 'ا' && mk(k) === '';
+  const skel = t => Q.norm(t).replace(/ا/g, '');
   const tx = k => k.c + k.m;
   function diff(mt, st, marks) {
     const A = clusters(mt), B = clusters(st), n = A.length, m = B.length;
@@ -157,8 +163,8 @@
     while (i > 0 || j > 0) {
       const s = i > 0 && j > 0 ? sc(i - 1, j - 1) : 0;
       if (s && dp[i][j] === dp[i - 1][j - 1] + s) { ops.push([marks && s === 2 ? 'mk' : 'eq', tx(A[i - 1]), tx(B[j - 1])]); i--; j--; }
-      else if (i > 0 && (j === 0 || dp[i][j] === dp[i - 1][j])) { ops.push(['del', tx(A[i - 1]), '']); i--; }
-      else { ops.push(['ins', '', tx(B[j - 1])]); j--; }
+      else if (i > 0 && (j === 0 || dp[i][j] === dp[i - 1][j])) { ops.push([soft(A[i - 1]) ? 'eq' : 'del', tx(A[i - 1]), '']); i--; }
+      else { ops.push([soft(B[j - 1]) ? 'eq' : 'ins', '', tx(B[j - 1])]); j--; }
     }
     ops.reverse();
     const seg = []; let l = 0, h = 0;
@@ -182,7 +188,7 @@
       if (!hit) { a.src = null; a.verified = null; return; }
       const slice = hit.x.words.slice(hit.r.start, hit.r.end), st = slice.join(' ');
       const mt = a.words.slice(hit.bsm).map(w => w.arabic).join(' '), d = diff(mt, st, db.marks);
-      a.verified = Q.sim(Q.norm(mt), Q.norm(st));
+      a.verified = Q.sim(skel(mt), skel(st));
       a.lDiff = d.l; a.mkDiff = db.marks ? d.h : null; a.diff = d.seg;
       a.src = { s: hit.x.s, n: hit.x.n, alt: hit.exact, text: st, partial: slice.length < hit.x.words.length };
       if (Number(a.number) !== hit.x.n) a.modelNumber = a.number;
